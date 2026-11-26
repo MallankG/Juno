@@ -4,7 +4,7 @@ A personal assistant built with [eve](https://eve.dev) for the eve Builder Chall
 It reads your calendar and mail, tells you what matters today, proposes calendar events
 for you to approve, and gets to know you over time: it remembers facts you share, learns
 from what you accept and reject, and reviews each night to update its picture of you.
-You can talk to it by voice in the browser.
+You can talk to it by voice from your phone: it installs to your home screen like an app.
 
 ## What it does
 
@@ -15,7 +15,8 @@ You can talk to it by voice in the browser.
 | Long-term memory | [Supermemory](https://supermemory.ai): extracts facts from each exchange, recalls them next time, supports forget |
 | Learning loop | Logs accepted, rejected and corrected suggestions; a nightly review corrects and forgets facts in Supermemory |
 | "What do you know about me?" | Searches Supermemory and lists what it holds |
-| Voice | Browser page in `voice/` using built-in speech recognition and speech synthesis |
+| Voice | Deepgram speech-to-text and text-to-speech, behind the agent's own routes |
+| Phone app | Mobile-first page (`voice/`), installable to the home screen, served by the agent itself |
 
 ## Architecture
 
@@ -29,8 +30,11 @@ agent/
   lib/scope.ts             who owns memory; scheduled runs map to the owner
   tools/                   Google Calendar (read + create with approval), Gmail (read), Slack (read)
   schedules/               morning-brief (07:00) and nightly-consolidation (02:30)
-  channels/eve.ts          HTTP API with CORS, used by the voice page
-voice/index.html           voice and text client (no build step)
+  channels/eve.ts          HTTP API, protected with a username and password
+  channels/voice.ts        /eve/v1/voice/transcribe and /speak (Deepgram)
+  channels/home.ts         serves the phone app at /
+voice/                     phone app source: index.html, manifest, service worker, icons
+scripts/embed-voice.mjs    embeds voice/ into the agent (run by npm run dev/build)
 ```
 
 Key design points:
@@ -47,17 +51,10 @@ Requirements: Node.js 24 or newer.
 ```bash
 npm install
 cp .env.example .env        # fill in the keys you have; see below
-npx eve dev                 # starts the agent on http://localhost:2000
+npm run dev                 # embeds the phone app, then starts the agent on http://localhost:2000
 ```
 
-In another terminal, serve the voice page:
-
-```bash
-npx --yes serve voice -l 8080   # or: python3 -m http.server 8080 --directory voice
-```
-
-Open http://localhost:8080. Press **Talk** (Chrome, Edge or Safari) or type. Set the agent URL under
-*Connection settings* if it is not `http://localhost:2000`.
+Open http://localhost:2000 in a browser. Locally, requests are allowed without a password.
 
 To run the morning brief now, without waiting for 07:00:
 
@@ -65,7 +62,20 @@ To run the morning brief now, without waiting for 07:00:
 curl -X POST "http://localhost:2000/eve/v1/dev/schedules/morning-brief"
 ```
 
+## Use it on your phone
+
+1. Deploy it (see *Deploy* below) so it has an HTTPS address. Microphones only work over HTTPS.
+2. Open the address in **Safari** (iPhone) or **Chrome** (Android). Enter the username and password from your environment settings when asked. Your phone remembers them.
+3. Install it: iPhone: Share → *Add to Home Screen*. Android: menu → *Install app*.
+4. Tap **Talk**, speak, then tap **Stop**. The reply is read aloud; turn that off with *Voice on*.
+
+Chrome, Edge, Safari on iPhone and Android all record audio for this. A text box is always there as a fallback.
+
 ## Connect the services (all free)
+
+**Voice (Deepgram).** Create a free account at https://console.deepgram.com and set `DEEPGRAM_API_KEY`. The $200 free credit has no expiry, which covers a lot of personal use. The agent uses Nova-3 for transcription and Aura-2 for speech.
+
+**Sign-in.** Set `ASSISTANT_USERNAME` and `ASSISTANT_PASSWORD` to values only you know. They protect the agent and its voice routes when it's deployed.
 
 **Model.** Use an AI Gateway key (`AI_GATEWAY_API_KEY`) or switch `agent/agent.ts` to the
 eve Anthropic helper and set `ANTHROPIC_API_KEY`. Haiku 5.5 keeps usage cheap for a personal assistant.
@@ -105,7 +115,7 @@ Vercel's default auth protects the API. To use the voice page against a deployme
 | Google Calendar, Gmail APIs | Free at personal scale |
 | Slack bot | Free |
 | Supermemory | Free plan: $5 of credits a month |
-| Voice (speech recognition and synthesis) | Free, built into the browser |
+| Voice (Deepgram Nova-3 and Aura-2) | Free $200 credit, no expiry; then pay as you go |
 | Model (Claude Haiku 5.5) | Pay per token; a typical day is a few cents. Check your provider's current pricing |
 | Hosting | Local: free. Vercel Hobby is free for personal use, with schedules limited to once per 15 minutes |
 | Storage | Vercel Blob has a free tier; one small JSON file per user is far below it |
@@ -114,6 +124,8 @@ Vercel's default auth protects the API. To use the voice page against a deployme
 
 - **Storage.** The learning log is a JSON file under `.eve-data/` locally, and a private Vercel Blob store when deployed (see *Deploy* below). Writes are last-write-wins, which is fine for one person's assistant.
 - **Model cost.** Every chat turn and scheduled run calls the model. Keep schedules to one or two a day.
-- **Shared HTTP auth.** The default auth allows local development requests only. Add your own auth in `agent/channels/eve.ts` before exposing the agent to others.
+- **Access.** The app is protected by one username and password. That suits one person. For more people, replace it with real accounts (eve supports OIDC and JWT helpers) before sharing the link.
+- **Conversation history is kept.** `agent/agent.ts` sets `retention: "default"` so the phone app can show earlier messages. eve otherwise deletes a private conversation's history when it ends. The Workflow world keeps it for its default period. Delete conversations you don't want kept.
+- **Your voice and words go to Deepgram** for transcription and speech, and to the model provider for replies. Check their terms for anything sensitive.
 - **Memory is sensitive.** Supermemory stores extracted facts about you. Review its data settings and use the forget tool for anything you do not want kept.
 - **Not a substitute for judgment.** The agent proposes; you decide. It does not send mail or change anything without your approval.

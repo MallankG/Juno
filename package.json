@@ -8,9 +8,11 @@
     "node": "24.x"
   },
   "scripts": {
-    "dev": "eve dev",
-    "build": "eve build",
+    "dev": "node scripts/embed-voice.mjs && eve dev",
+    "build": "node scripts/embed-voice.mjs && eve build",
+    "start": "eve start",
     "info": "eve info",
+    "embed": "node scripts/embed-voice.mjs",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

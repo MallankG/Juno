@@ -1,16 +1,17 @@
-import { localDev, vercelOidc } from "eve/channels/auth";
+import { vercelOidc } from "eve/channels/auth";
 import { eveChannel } from "eve/channels/eve";
 
+import { assistantAuth } from "../lib/auth";
+
 /**
- * The HTTP API used by the terminal UI and by the voice page in /voice.
+ * The HTTP API used by the voice page and the terminal UI.
  *
- * Route auth still applies: `localDev()` admits local requests, and
- * `vercelOidc()` admits your team's deployments. Add your own auth before
- * exposing the agent publicly.
+ * Auth: a username and password (ASSISTANT_USERNAME / ASSISTANT_PASSWORD) for
+ * your phone and browser, Vercel OIDC for your team's deployments, and local
+ * development requests.
  *
- * `cors: true` lets the browser voice page in /voice call the API directly.
+ * The voice page is served from the same origin, so no CORS is needed.
  */
 export default eveChannel({
-  auth: [vercelOidc(), localDev()],
-  cors: true,
+  auth: [...assistantAuth, vercelOidc()],
 });

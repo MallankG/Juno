@@ -8,4 +8,12 @@ export default defineAgent({
   modelContextWindowTokens: 200_000,
   reasoning: "low",
   compaction: { threshold: 0.8 },
+  experimental: {
+    workflow: {
+      // Keep each conversation's history readable, so the phone app can show
+      // earlier turns. The default deletes a private session's history when its
+      // run ends. See README "Privacy" for what this keeps.
+      retention: "default",
+    },
+  },
 });
