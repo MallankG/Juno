@@ -1,0 +1,27 @@
+{
+  "name": "eve-personal-ai",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Personal AI assistant with a learning memory, built with eve.",
+  "type": "module",
+  "engines": {
+    "node": "24.x"
+  },
+  "scripts": {
+    "dev": "eve dev",
+    "build": "eve build",
+    "info": "eve info",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@supermemory/eve": "^0.2.0-rc.1",
+    "ai": "^7.0.183",
+    "eve": "^1.5.0",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.11",
+    "just-bash": "^3.6.1",
+    "typescript": "^7.0.2"
+  }
+}

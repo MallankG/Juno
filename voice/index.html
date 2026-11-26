@@ -1,0 +1,291 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Your assistant</title>
+  <style>
+    :root {
+      --bg: #f7f6f2; --card: #ffffff; --ink: #1d1d1b; --muted: #6b6a64;
+      --accent: #2f6fed; --accent-ink: #ffffff; --line: #e4e2da; --warn: #b26a00;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root:not([data-theme="light"]) {
+        --bg: #161614; --card: #22221f; --ink: #f2f1ec; --muted: #9b9a92;
+        --accent: #6c9bff; --accent-ink: #0b0b0a; --line: #34332e; --warn: #f0a94a;
+      }
+    }
+    :root[data-theme="dark"] {
+      --bg: #161614; --card: #22221f; --ink: #f2f1ec; --muted: #9b9a92;
+      --accent: #6c9bff; --accent-ink: #0b0b0a; --line: #34332e; --warn: #f0a94a;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.5 system-ui, -apple-system, Segoe UI, sans-serif; }
+    main { max-width: 680px; margin: 0 auto; padding: 16px; display: grid; gap: 12px; }
+    h1 { font-size: 20px; margin: 8px 0 0; }
+    .muted { color: var(--muted); font-size: 14px; }
+    .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 14px; }
+    #log { min-height: 180px; max-height: 52vh; overflow: auto; display: grid; gap: 10px; }
+    .msg { padding: 10px 12px; border-radius: 12px; white-space: pre-wrap; }
+    .you { background: var(--accent); color: var(--accent-ink); justify-self: end; max-width: 85%; }
+    .them { background: var(--bg); border: 1px solid var(--line); max-width: 92%; }
+    .approval { border-color: var(--warn); }
+    .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+    button { font: inherit; border-radius: 999px; border: 1px solid var(--line); background: var(--card); color: var(--ink); padding: 10px 14px; cursor: pointer; min-height: 44px; }
+    button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+    button:disabled { opacity: .5; cursor: default; }
+    #mic.listening { background: var(--warn); color: #000; border-color: var(--warn); }
+    input[type="text"], input[type="url"] { flex: 1; min-width: 0; font: inherit; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); min-height: 44px; }
+    details summary { cursor: pointer; color: var(--muted); font-size: 14px; }
+    .status { font-size: 14px; color: var(--muted); min-height: 1.4em; }
+  </style>
+</head>
+<body>
+<main>
+  <header class="row" style="justify-content:space-between">
+    <h1>Your assistant</h1>
+    <div class="row">
+      <button id="mute" title="Turn spoken replies on or off">Voice: on</button>
+      <button id="newChat" title="Start a fresh conversation">New chat</button>
+    </div>
+  </header>
+
+  <section class="card">
+    <div class="row">
+      <button id="brief" class="primary">My brief</button>
+      <button id="know">What do you know about me?</button>
+    </div>
+  </section>
+
+  <section class="card">
+    <div id="log" aria-live="polite"><div class="muted">Press the mic and talk, or type below.</div></div>
+    <div class="status" id="status" style="margin-top:8px"></div>
+  </section>
+
+  <form id="form" class="row card" autocomplete="off">
+    <button type="button" id="mic" title="Talk to your assistant">Talk</button>
+    <input id="text" type="text" placeholder="Type a message" aria-label="Message" />
+    <button class="primary" id="send" type="submit">Send</button>
+  </form>
+
+  <details class="card">
+    <summary>Connection settings</summary>
+    <div class="row" style="margin-top:10px">
+      <input id="base" type="url" placeholder="http://localhost:2000" aria-label="Agent URL" />
+      <button id="saveBase" type="button">Save</button>
+    </div>
+    <p class="muted">Point this at your running agent. Locally that is <code>npx eve dev</code> on port 2000.</p>
+  </details>
+</main>
+
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const log = $("log"), statusEl = $("status"), input = $("text");
+  const store = {
+    get(k, d) { try { return localStorage.getItem(k) ?? d; } catch { return d; } },
+    set(k, v) { try { localStorage.setItem(k, v); } catch {} },
+    del(k) { try { localStorage.removeItem(k); } catch {} },
+  };
+
+  let base = store.get("agentBase", "http://localhost:2000");
+  let sessionId = store.get("sessionId", "");
+  let speak = store.get("speak", "on") === "on";
+  let busy = false;
+  $("base").value = base;
+
+  const setStatus = (t) => { statusEl.textContent = t; };
+  const bubble = (cls, text) => {
+    if (log.firstElementChild && log.firstElementChild.classList.contains("muted")) log.textContent = "";
+    const el = document.createElement("div");
+    el.className = "msg " + cls;
+    el.textContent = text;
+    log.appendChild(el);
+    log.scrollTop = log.scrollHeight;
+    return el;
+  };
+
+  function say(text) {
+    if (!speak || !("speechSynthesis" in window) || !text) return;
+    speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    u.rate = 1.02;
+    speechSynthesis.speak(u);
+  }
+
+  // Walk one stream record. Records may be single events or arrays of them.
+  // Real lines look like { at, facts: [{ type, data, scope }] }; progress records
+  // use other keys, so unwrap any array of records we find.
+  function eachEvent(record, fn) {
+    if (Array.isArray(record)) record.forEach((r) => eachEvent(r, fn));
+    else if (record && typeof record === "object") {
+      if (typeof record.type === "string") fn(record);
+      for (const key of ["facts", "progress", "events", "records"]) {
+        if (Array.isArray(record[key])) record[key].forEach((r) => eachEvent(r, fn));
+      }
+    }
+  }
+
+  async function openStream(id, startIndex, follow, signal) {
+    const url = `${base}/eve/v1/session/${id}/stream?startIndex=${startIndex}&follow=${follow}`;
+    return fetch(url, { signal, headers: { accept: "application/x-ndjson" } });
+  }
+
+  async function tailOf(id) {
+    const res = await openStream(id, 0, false);
+    if (!res.ok) throw new Error(`Session not available (HTTP ${res.status})`);
+    const header = res.headers.get("x-eve-stream-tail-index");
+    const text = await res.text();
+    if (header !== null && !Number.isNaN(Number(header))) return Number(header);
+    return text.split("\n").filter(Boolean).length;
+  }
+
+  async function postJson(path, body) {
+    const res = await fetch(base + path, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+    return data;
+  }
+
+  // Sends a message (creating the session if needed) and streams the reply.
+  async function send(text) {
+    if (busy || !text.trim()) return;
+    busy = true; setStatus("Thinking…");
+    $("send").disabled = true;
+    bubble("you", text);
+    try {
+      let startIndex = 0;
+      if (!sessionId) {
+        const created = await postJson("/eve/v1/session", { message: text });
+        sessionId = created.sessionId;
+        store.set("sessionId", sessionId);
+      } else {
+        startIndex = await tailOf(sessionId);
+        await postJson(`/eve/v1/session/${sessionId}`, { message: text });
+      }
+      await followTurn(startIndex);
+    } catch (err) {
+      bubble("them", `Sorry, something went wrong: ${err.message}. Check the agent is running and the URL is right.`);
+      setStatus("");
+    } finally {
+      busy = false; $("send").disabled = false;
+    }
+  }
+
+  async function followTurn(startIndex) {
+    const controller = new AbortController();
+    const res = await openStream(sessionId, startIndex, true, controller.signal);
+    if (!res.ok || !res.body) throw new Error(`stream HTTP ${res.status}`);
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    let streamed = null;
+    let done = false;
+
+    const handle = (ev) => {
+      const d = ev.data || {};
+      if (ev.type === "content.completed" && d.phase === "reply" && d.kind === "text") {
+        // Show the reply as it completes; turn.settled below carries the final text.
+        if (typeof d.value === "string" && d.value.trim()) streamed = bubble("them", d.value);
+      }
+      if (ev.type === "turn.paused") {
+        for (const item of d.awaiting || []) renderApproval(item);
+        setStatus("Waiting for your approval…");
+      }
+      if (ev.type === "turn.settled") {
+        const reply = Array.isArray(d.reply) ? d.reply.join("\n\n") : "";
+        if (reply && !streamed) bubble("them", reply);
+        if (reply) say(reply);
+        if (d.outcome && d.outcome !== "completed") {
+          const msg = d.outcome === "cancelled"
+            ? "Stopped."
+            : "I couldn't finish that. Check the agent's model key and its logs, then try again.";
+          if (!reply) bubble("them", msg);
+          setStatus("");
+        } else setStatus("");
+        done = true;
+      }
+    };
+
+    while (!done) {
+      const { value, done: eof } = await reader.read();
+      if (eof) break;
+      buffer += decoder.decode(value, { stream: true });
+      let nl;
+      while ((nl = buffer.indexOf("\n")) >= 0) {
+        const line = buffer.slice(0, nl).trim();
+        buffer = buffer.slice(nl + 1);
+        if (!line) continue;
+        try { eachEvent(JSON.parse(line), handle); } catch { /* skip malformed line */ }
+        if (done) break;
+      }
+    }
+    controller.abort();
+  }
+
+  function renderApproval(item) {
+    const id = item.interactionId;
+    const label = item.title || item.prompt || item.label || "The assistant wants to run an action.";
+    const el = bubble("them approval", label + "\nApprove?");
+    const row = document.createElement("div");
+    row.className = "row"; row.style.marginTop = "8px";
+    for (const [text, optionId, cls] of [["Approve", "approve", "primary"], ["Deny", "deny", ""]]) {
+      const b = document.createElement("button");
+      b.textContent = text; b.className = cls;
+      b.onclick = async () => {
+        row.querySelectorAll("button").forEach((x) => (x.disabled = true));
+        try {
+          await postJson(`/eve/v1/session/${sessionId}`, { answers: [{ interactionId: id, optionId }] });
+          el.textContent = label + `\n${text === "Approve" ? "Approved" : "Denied"}`;
+        } catch (err) {
+          el.textContent = label + `\nCould not send your answer: ${err.message}`;
+        }
+      };
+      row.appendChild(b);
+    }
+    el.appendChild(row);
+  }
+
+  // Voice input (free, built into Chrome, Edge and Safari).
+  const Rec = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const mic = $("mic");
+  if (!Rec) {
+    mic.disabled = true; mic.title = "Voice input needs Chrome, Edge or Safari";
+  } else {
+    const rec = new Rec();
+    rec.lang = navigator.language || "en-US";
+    rec.interimResults = false;
+    rec.maxAlternatives = 1;
+    rec.onresult = (e) => { const t = e.results[0][0].transcript; input.value = ""; send(t); };
+    rec.onend = () => mic.classList.remove("listening");
+    rec.onerror = (e) => { setStatus(`Microphone: ${e.error}`); mic.classList.remove("listening"); };
+    mic.onclick = () => {
+      if (mic.classList.contains("listening")) { rec.stop(); return; }
+      speechSynthesis && speechSynthesis.cancel();
+      mic.classList.add("listening"); setStatus("Listening…");
+      rec.start();
+    };
+  }
+
+  $("form").onsubmit = (e) => { e.preventDefault(); const t = input.value; input.value = ""; send(t); };
+  $("brief").onclick = () => send("What's my latest morning brief? Read it to me in short sentences.");
+  $("know").onclick = () => send("What do you know about me? List it briefly.");
+  $("newChat").onclick = () => { sessionId = ""; store.del("sessionId"); log.innerHTML = '<div class="muted">New conversation started.</div>'; };
+  $("mute").onclick = () => {
+    speak = !speak; store.set("speak", speak ? "on" : "off");
+    $("mute").textContent = "Voice: " + (speak ? "on" : "off");
+    if (!speak && "speechSynthesis" in window) speechSynthesis.cancel();
+  };
+  $("mute").textContent = "Voice: " + (speak ? "on" : "off");
+  $("saveBase").onclick = () => {
+    base = $("base").value.replace(/\/+$/, "") || "http://localhost:2000";
+    store.set("agentBase", base); setStatus("Saved " + base);
+  };
+})();
+</script>
+</body>
+</html>
