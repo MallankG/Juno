@@ -16,6 +16,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@ai-sdk/openai-compatible": "^3.0.96",
     "@supermemory/eve": "^0.2.0-rc.1",
     "@vercel/blob": "^2.9.0",
     "ai": "^7.0.183",

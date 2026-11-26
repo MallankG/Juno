@@ -2,6 +2,7 @@ import { defineChannel, POST } from "eve/channels";
 
 import { listUsers, type User } from "../lib/accounts";
 import { JOBS, jobSecretValid, promptFor, type JobName } from "../lib/jobs";
+import { consumeGlobalTurn, tooMany } from "../lib/rate-limit";
 
 /**
  * Runs a daily or weekly job for every person. Only the scheduled jobs call
@@ -28,6 +29,8 @@ export default defineChannel({
       let started = 0;
       for (const user of targets) {
         const address = `job:${job}:${user.username}:${today()}`;
+        const verdict = await consumeGlobalTurn();
+        if (!verdict.allowed) return tooMany({ ...verdict, reason: `${verdict.reason} Started ${started} of ${targets.length}.` });
         await from(address).send(promptFor(job, user), {
           auth: { authenticator: "jobs", principalType: "user", principalId: user.username, attributes: {} },
           idempotencyKey: address,

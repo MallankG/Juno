@@ -4,6 +4,7 @@ import { promisify } from "node:util";
 import { localDev, routeAuth, withAuthChallenges } from "eve/channels/auth";
 
 import { readDoc, updateDoc } from "./store";
+import { recordSigninFailure, signinBlocked } from "./rate-limit";
 
 const scrypt = promisify(scryptCb) as (password: string, salt: string, keylen: number) => Promise<Buffer>;
 
@@ -136,6 +137,7 @@ export const accountAuth = withAuthChallenges(
     if (separator < 0) return null;
     const username = decoded.slice(0, separator).toLowerCase();
     const password = decoded.slice(separator + 1);
+    if (await signinBlocked(username)) return null; // too many failures: refuse for a while
 
     let principal: string | null = null;
     if (adminMatches(username, password)) principal = username;
@@ -143,7 +145,10 @@ export const accountAuth = withAuthChallenges(
       const user = await findUser(username);
       if (user && (await passwordMatches(user, password))) principal = username;
     }
-    if (!principal) return null;
+    if (!principal) {
+      await recordSigninFailure(username);
+      return null;
+    }
     return {
       authenticator: "account",
       principalType: "user" as const,

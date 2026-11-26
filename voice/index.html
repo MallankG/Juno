@@ -271,7 +271,7 @@
     try {
       const res = await fetch("/eve/v1/voice/speak", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ text: chunk }) });
       if (res.status === 401) throw authError("Please sign in.");
-      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || `HTTP ${res.status}`);
+      if (!res.ok) throw new Error(explain(res, await res.json().catch(() => ({}))));
       const url = URL.createObjectURL(await res.blob());
       player.onended = () => { URL.revokeObjectURL(url); speakNext(); };
       player.src = url;
@@ -287,11 +287,21 @@
     queue.length = 0; queue.push(...chunkText(text)); speakNext();
   }
 
+  // Friendly text for rate limits (429) and other errors.
+  function explain(res, data) {
+    if (res.status === 429) {
+      const s = Number(res.headers.get("retry-after") || (data && data.retryAfter) || 0);
+      const wait = s >= 60 ? `${Math.ceil(s / 60)} min` : `${s || 30} s`;
+      return `Slow down a little. Try again in ${wait}.`;
+    }
+    return (data && data.error) || `HTTP ${res.status}`;
+  }
+
   async function postJson(path, body, method = "POST") {
     const res = await fetch(path, { method, headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
     if (res.status === 401) throw authError("Please sign in.");
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+    if (!res.ok) throw new Error(explain(res, data));
     return data;
   }
 
@@ -448,7 +458,7 @@
       const res = await fetch("/eve/v1/voice/transcribe", { method: "POST", headers: { "content-type": type }, body: blob });
       if (res.status === 401) throw authError("Please sign in.");
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+      if (!res.ok) throw new Error(explain(res, data));
       if (!data.text) { setStatus("I didn't catch that. Try again."); return; }
       await send(data.text);
     } catch (err) {
@@ -601,7 +611,7 @@
         body: JSON.stringify({ username: $("regUser").value, password: $("regPass").value, inviteCode: $("regCode").value }),
       });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+      if (!res.ok) throw new Error(explain(res, data));
       msg.textContent = `Account "${data.username}" created. Reload the page and sign in with it.`;
       msg.className = "note ok";
     } catch (err) { msg.textContent = err.message; msg.className = "note"; }

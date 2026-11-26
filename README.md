@@ -23,7 +23,9 @@ Several people can have their own accounts, each with their own memory, name, av
 
 ```
 agent/
-  agent.ts                  model (Claude Haiku 5.5), workflow history kept
+  agent.ts                  model (Groq, gpt-oss-20b), workflow history kept
+  lib/model.ts              the Groq model (OpenAI-compatible)
+  lib/rate-limit.ts         per-person and daily limits
   instructions.md           Juno's personality and rules
   channels/
     eve.ts                  chat API: sign-in, per-person name and time zone
@@ -87,7 +89,7 @@ Microphones and notifications only work over HTTPS, so deploy it. On Vercel's fr
 
 | Service | What for | Set |
 | --- | --- | --- |
-| Model (AI Gateway or Anthropic) | Juno's replies | `AI_GATEWAY_API_KEY` or `ANTHROPIC_API_KEY` |
+| [Groq](https://console.groq.com/keys) | Juno's replies (free tier, `openai/gpt-oss-20b`) | `GROQ_API_KEY` (optional `GROQ_MODEL`) |
 | [Supermemory](https://console.supermemory.ai/keys) | Long-term memory ($5/month free credit) | `SUPERMEMORY_API_KEY` |
 | Invite code | People can create accounts | `INVITE_CODE` (choose any long phrase) |
 | `CRON_SECRET` | Lets scheduled jobs run | any long random string |
@@ -120,6 +122,22 @@ Sign-up: tap **Settings → Create an account**, and enter the invite code you w
 - **Automatic rules:** ask in chat, e.g. "add my team standup every Monday at 9 for 30 minutes". Juno asks you to approve the rule. Manage rules in Settings.
 - **Notifications:** **Settings → Turn on notifications**, then *Send a test*.
 
+## Rate limits
+
+Juno limits how much can be used, to protect the free quotas and to stop abuse:
+
+| Limit | Default | Setting |
+| --- | --- | --- |
+| Chat messages per person | 10 a minute, 200 a day | `RL_CHAT_PER_MINUTE`, `RL_CHAT_PER_DAY` |
+| Voice (talk and speech) per person | 12 a minute | `RL_VOICE_PER_MINUTE` |
+| Failed sign-ins per username | 10 per 15 minutes | `RL_SIGNIN_FAILS_15MIN` |
+| Account creation per network address | 5 an hour | `RL_REGISTER_PER_HOUR` |
+| Model turns across everyone (chat and daily jobs) | 900 a day | `RL_DAILY_TURNS_TOTAL` |
+
+When a limit is hit, the app shows how long to wait. The daily total is the important one: it keeps everyone inside Groq's daily allowance. Counts reset at fixed times (minutes, hours, or midnight UTC).
+
+**Groq's free tier is small.** Check your limits at https://console.groq.com/settings/limits. Tokens per minute matter most: a long brief with a calendar and mail can use several thousand tokens. If briefs fail with a rate-limit message, lower the number of people or move to a paid Groq plan.
+
 ## Scheduled jobs
 
 Each job runs once for every person, as that person:
@@ -144,7 +162,7 @@ The times live in `agent/schedules/`. Change `timezone` there to move them.
 | Deepgram voice | Free $200 credit, no expiry |
 | Web push notifications | Free |
 | Vercel Hobby and Blob | Free tier, personal use |
-| Model (Claude Haiku 5.5) | Pay per token. A typical day is a few cents. Check current pricing |
+| Groq | Free tier with per-minute and per-day limits. Paid plans raise them |
 
 ## Privacy and limits
 

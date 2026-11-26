@@ -1,6 +1,7 @@
 import { defineChannel, POST } from "eve/channels";
 
 import { authenticate } from "../lib/accounts";
+import { consumeVoice, tooMany } from "../lib/rate-limit";
 
 /**
  * Speech for the phone app, provided by Deepgram (free $200 credit, no expiry).
@@ -22,6 +23,8 @@ export default defineChannel({
     POST("/eve/v1/voice/transcribe", async (request) => {
       const who = await authenticate(request);
       if ("response" in who) return who.response;
+      const verdict = await consumeVoice(who.username);
+      if (!verdict.allowed) return tooMany(verdict);
       const key = process.env.DEEPGRAM_API_KEY;
       if (!key) return missingKey();
 
@@ -48,6 +51,8 @@ export default defineChannel({
     POST("/eve/v1/voice/speak", async (request) => {
       const who = await authenticate(request);
       if ("response" in who) return who.response;
+      const verdict = await consumeVoice(who.username);
+      if (!verdict.allowed) return tooMany(verdict);
       const key = process.env.DEEPGRAM_API_KEY;
       if (!key) return missingKey();
 

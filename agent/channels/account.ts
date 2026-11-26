@@ -3,6 +3,7 @@ import { defineChannel, GET, POST } from "eve/channels";
 import { authenticate, ensureUser, publicProfile, register, updateUser, USERNAME_PATTERN, type User } from "../lib/accounts";
 import { connectUrl, disconnect, exchangeCode, googleConfigured, storeConnection, verifyState } from "../lib/google";
 import { pushConfigured, saveSubscription, vapidPublicKey, notify } from "../lib/push";
+import { clientIp, consumeRegister, tooMany } from "../lib/rate-limit";
 
 /**
  * Accounts, settings, Google connection and push notifications.
@@ -42,6 +43,8 @@ async function readBody(request: Request): Promise<Record<string, unknown>> {
 export default defineChannel({
   routes: [
     POST("/eve/v1/account/register", async (request) => {
+      const attempt = await consumeRegister(clientIp(request));
+      if (!attempt.allowed) return tooMany(attempt);
       const body = await readBody(request);
       try {
         const username = String(body.username ?? "").trim().toLowerCase();

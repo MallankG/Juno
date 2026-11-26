@@ -1,7 +1,8 @@
-import { vercelOidc, localDev } from "eve/channels/auth";
+import { localDev, TooManyRequestsError, vercelOidc } from "eve/channels/auth";
 import { defaultEveAuth, eveChannel } from "eve/channels/eve";
 
 import { accountAuth, ensureUser } from "../lib/accounts";
+import { consumeChat } from "../lib/rate-limit";
 
 /**
  * The HTTP API for the phone app and the terminal UI.
@@ -18,6 +19,8 @@ export default eveChannel({
     const auth = defaultEveAuth(ctx);
     if (!auth) throw new Error("Sign in to continue.");
     const who = auth.principalId;
+    const verdict = await consumeChat(who);
+    if (!verdict.allowed) throw new TooManyRequestsError({ retryAfter: verdict.retryAfter });
     const user = await ensureUser(who);
     const today = new Intl.DateTimeFormat("en-GB", {
       timeZone: user.timezone, weekday: "long", year: "numeric", month: "long", day: "numeric",
