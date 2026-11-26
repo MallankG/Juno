@@ -30,20 +30,20 @@ const roleOf = (message: unknown) => String((message as { role?: unknown })?.rol
 export function learningMemory() {
   return defineMemoryProvider({
     recall: {
-      "turn.started"() {
+      async "turn.started"() {
         return null; // nothing injected: Supermemory handles recall
       },
     },
 
     capture: {
-      "turn.completed"(ctx) {
+      async "turn.completed"(ctx) {
         const key = ctx.memory.scope.key;
         const user = ctx.turn.input.filter((m) => roleOf(m) === "user").map(textOf).join("\n").trim();
         const last = [...ctx.messages].reverse().find((m) => roleOf(m) === "assistant");
         const assistant = last ? textOf(last).trim() : "";
         if (!user && !assistant) return;
 
-        updateScope(key, (s) => {
+        await updateScope(key, (s) => {
           // Operations can be retried, so store each one at most once.
           if (s.seenOperations.includes(ctx.operationId)) return;
           s.seenOperations.push(ctx.operationId);
@@ -78,7 +78,7 @@ export function learningMemory() {
               subject,
               correction,
             };
-            updateScope(key, (s) => {
+            await updateScope(key, (s) => {
               s.episodes.push(episode);
             });
             return { recorded: true, id: episode.id };
@@ -92,7 +92,7 @@ export function learningMemory() {
           async execute({ days }) {
             const since = Date.now() - days * 24 * 60 * 60 * 1000;
             return {
-              episodes: readScope(key).episodes
+              episodes: (await readScope(key)).episodes
                 .filter((e) => Date.parse(e.at) >= since)
                 .map(({ id: _id, ...rest }) => rest),
             };
@@ -110,7 +110,7 @@ export function learningMemory() {
               text,
               createdAt: now.toISOString(),
             };
-            updateScope(key, (s) => {
+            await updateScope(key, (s) => {
               s.briefs.push(brief);
             });
             return { saved: true, id: brief.id, date: brief.date };
@@ -121,7 +121,7 @@ export function learningMemory() {
           description: "Return the most recent saved morning brief.",
           inputSchema: z.object({}),
           async execute() {
-            const briefs = readScope(key).briefs;
+            const briefs = (await readScope(key)).briefs;
             const latest = briefs[briefs.length - 1];
             return latest ? { date: latest.date, text: latest.text } : { text: null, reason: "No brief yet." };
           },

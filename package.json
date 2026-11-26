@@ -15,6 +15,7 @@
   },
   "dependencies": {
     "@supermemory/eve": "^0.2.0-rc.1",
+    "@vercel/blob": "^2.9.0",
     "ai": "^7.0.183",
     "eve": "^1.5.0",
     "zod": "^4.6.7"

@@ -87,6 +87,16 @@ invite the bot to the channels you want, and set `SLACK_BOT_TOKEN` and `SLACK_CH
 
 Anything you leave unset is reported as "not connected" and skipped, so the agent still runs.
 
+## Deploy on Vercel (free Hobby plan)
+
+1. Push this repo to GitHub and import it in Vercel. Install the Vercel CLI if you prefer: `npx vercel`.
+2. In the Vercel dashboard, open **Storage → Create → Blob**, choose a **private** store, and connect it to the project. This sets `BLOB_READ_WRITE_TOKEN`.
+3. Add the other keys from `.env.example` under **Settings → Environment Variables** (model key, `SUPERMEMORY_API_KEY`, Google, Slack).
+4. Deploy with `npx eve deploy` (or push to the connected branch).
+5. The schedules run on Vercel Schedules. Hobby plans allow them at most every 15 minutes; these two run once a day.
+
+Vercel's default auth protects the API. To use the voice page against a deployment, add your own auth in `agent/channels/eve.ts` first, then point the page's *Connection settings* at the deployed URL.
+
 ## Free-tier and cost notes
 
 | Piece | Cost |
@@ -98,10 +108,11 @@ Anything you leave unset is reported as "not connected" and skipped, so the agen
 | Voice (speech recognition and synthesis) | Free, built into the browser |
 | Model (Claude Haiku 5.5) | Pay per token; a typical day is a few cents. Check your provider's current pricing |
 | Hosting | Local: free. Vercel Hobby is free for personal use, with schedules limited to once per 15 minutes |
+| Storage | Vercel Blob has a free tier; one small JSON file per user is far below it |
 
 ## Limits and honest notes
 
-- **Local storage.** The learning log is a JSON file under `.eve-data/`. Serverless hosts such as Vercel do not keep local files between runs, so deploying needs a durable store (for example Vercel Blob, which has a free tier) before the briefs and feedback persist.
+- **Storage.** The learning log is a JSON file under `.eve-data/` locally, and a private Vercel Blob store when deployed (see *Deploy* below). Writes are last-write-wins, which is fine for one person's assistant.
 - **Model cost.** Every chat turn and scheduled run calls the model. Keep schedules to one or two a day.
 - **Shared HTTP auth.** The default auth allows local development requests only. Add your own auth in `agent/channels/eve.ts` before exposing the agent to others.
 - **Memory is sensitive.** Supermemory stores extracted facts about you. Review its data settings and use the forget tool for anything you do not want kept.
