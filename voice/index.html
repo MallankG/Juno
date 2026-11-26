@@ -290,9 +290,13 @@
   // Friendly text for rate limits (429) and other errors.
   function explain(res, data) {
     if (res.status === 429) {
-      const s = Number(res.headers.get("retry-after") || (data && data.retryAfter) || 0);
-      const wait = s >= 60 ? `${Math.ceil(s / 60)} min` : `${s || 30} s`;
-      return `Slow down a little. Try again in ${wait}.`;
+      const s = Number(res.headers.get("retry-after") || (data && data.retryAfter) || 0) || 30;
+      if (s >= 3600) {
+        const hours = Math.ceil(s / 3600);
+        return `You've reached today's limit for now. Juno can talk again in about ${hours} hour${hours === 1 ? "" : "s"}.`;
+      }
+      if (s >= 60) return `Juno needs a short break. Try again in about ${Math.ceil(s / 60)} minutes.`;
+      return `Juno needs a short break. Try again in ${s} seconds.`;
     }
     return (data && data.error) || `HTTP ${res.status}`;
   }
@@ -301,7 +305,7 @@
     const res = await fetch(path, { method, headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
     if (res.status === 401) throw authError("Please sign in.");
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(explain(res, data));
+    if (!res.ok) throw Object.assign(new Error(explain(res, data)), { rateLimited: res.status === 429 });
     return data;
   }
 
@@ -346,7 +350,8 @@
       else if (/no longer active/i.test(err.message)) {
         sessionId = ""; store.del("sessionId");
         bubble("them", "That conversation ended. Send your message again to start a new one.");
-      } else bubble("them", `Something went wrong: ${err.message}`);
+      } else if (err.rateLimited) bubble("them", err.message);
+      else bubble("them", `Something went wrong: ${err.message}`);
       setStatus("");
     } finally {
       busy = false; $("send").disabled = false;
