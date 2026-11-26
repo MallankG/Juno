@@ -1,17 +1,33 @@
-import { vercelOidc } from "eve/channels/auth";
-import { eveChannel } from "eve/channels/eve";
+import { vercelOidc, localDev } from "eve/channels/auth";
+import { defaultEveAuth, eveChannel } from "eve/channels/eve";
 
-import { assistantAuth } from "../lib/auth";
+import { accountAuth, ensureUser } from "../lib/accounts";
 
 /**
- * The HTTP API used by the voice page and the terminal UI.
+ * The HTTP API for the phone app and the terminal UI.
  *
- * Auth: a username and password (ASSISTANT_USERNAME / ASSISTANT_PASSWORD) for
- * your phone and browser, Vercel OIDC for your team's deployments, and local
- * development requests.
+ * Auth: a person's username and password, Vercel OIDC for your team's
+ * deployments, and local development requests.
  *
- * The voice page is served from the same origin, so no CORS is needed.
+ * Each message carries the person's agent name and time zone as per-turn
+ * context. That context is not saved in the conversation history.
  */
 export default eveChannel({
-  auth: [...assistantAuth, vercelOidc()],
+  auth: [accountAuth, localDev(), vercelOidc()],
+  async onMessage(ctx, _message) {
+    const auth = defaultEveAuth(ctx);
+    if (!auth) throw new Error("Sign in to continue.");
+    const who = auth.principalId;
+    const user = await ensureUser(who);
+    const today = new Intl.DateTimeFormat("en-GB", {
+      timeZone: user.timezone, weekday: "long", year: "numeric", month: "long", day: "numeric",
+    }).format(new Date());
+    return {
+      auth,
+      clientContext: [
+        `Your name is ${user.agentName}. Introduce yourself by that name if asked.`,
+        `You are talking with ${who}. Their time zone is ${user.timezone}. Today is ${today}.`,
+      ],
+    };
+  },
 });

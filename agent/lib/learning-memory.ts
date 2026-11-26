@@ -2,15 +2,18 @@ import { defineMemoryProvider } from "eve/memory";
 import { defineTool } from "eve/tools";
 import { z } from "zod";
 
-import { type Brief, type Episode, newId, readScope, updateScope } from "./store";
+import { notify } from "./push";
+import { type Brief, type Episode, newId, readScope, updateScope } from "./scope-data";
+import { whoIsCalling } from "./who";
 
 /**
- * The local learning log. It does not inject anything into the model's
- * context (Supermemory does the recall), which keeps token costs down.
+ * The learning log for each person. It injects nothing into the model's context
+ * (Supermemory does the recall), which keeps token costs down.
  *
  *  - capture: stores each finished exchange once, for the nightly review.
  *  - record_feedback: logs accepted, rejected or corrected suggestions.
- *  - save_brief / latest_brief: keeps the morning brief history.
+ *  - save_brief / latest_brief: keeps briefs (daily, weekly, triage) and pushes
+ *    a notification to the person's phone when a brief is saved.
  */
 
 function textOf(message: unknown): string {
@@ -27,11 +30,17 @@ function textOf(message: unknown): string {
 
 const roleOf = (message: unknown) => String((message as { role?: unknown })?.role ?? "");
 
+const KIND_TITLES: Record<Brief["kind"], string> = {
+  daily: "Your morning brief is ready",
+  weekly: "Your weekly review is ready",
+  triage: "Mail to review",
+};
+
 export function learningMemory() {
   return defineMemoryProvider({
     recall: {
       async "turn.started"() {
-        return null; // nothing injected: Supermemory handles recall
+        return null;
       },
     },
 
@@ -44,8 +53,7 @@ export function learningMemory() {
         if (!user && !assistant) return;
 
         await updateScope(key, (s) => {
-          // Operations can be retried, so store each one at most once.
-          if (s.seenOperations.includes(ctx.operationId)) return;
+          if (s.seenOperations.includes(ctx.operationId)) return; // retries store once
           s.seenOperations.push(ctx.operationId);
           s.episodes.push({
             id: ctx.operationId,
@@ -86,13 +94,13 @@ export function learningMemory() {
         }),
 
         recent_episodes: defineTool({
-          description:
-            "Read exchanges and feedback from the last N days. Used by the nightly review.",
+          description: "Read exchanges and feedback from the last N days. Used by the nightly review and the weekly review.",
           inputSchema: z.object({ days: z.number().int().min(1).max(30).default(1) }),
           async execute({ days }) {
             const since = Date.now() - days * 24 * 60 * 60 * 1000;
+            const scope = await readScope(key);
             return {
-              episodes: (await readScope(key)).episodes
+              episodes: scope.episodes
                 .filter((e) => Date.parse(e.at) >= since)
                 .map(({ id: _id, ...rest }) => rest),
             };
@@ -100,12 +108,17 @@ export function learningMemory() {
         }),
 
         save_brief: defineTool({
-          description: "Store the morning brief you just wrote, so the user can ask for it later.",
-          inputSchema: z.object({ text: z.string().min(20).max(20000) }),
-          async execute({ text }) {
+          description:
+            "Store a brief you just wrote (kind: daily morning brief, weekly review, or triage notes). This also sends the person a notification.",
+          inputSchema: z.object({
+            kind: z.enum(["daily", "weekly", "triage"]).default("daily"),
+            text: z.string().min(20).max(20000),
+          }),
+          async execute({ kind, text }, toolCtx) {
             const now = new Date();
             const brief: Brief = {
               id: newId("brief"),
+              kind,
               date: now.toISOString().slice(0, 10),
               text,
               createdAt: now.toISOString(),
@@ -113,17 +126,27 @@ export function learningMemory() {
             await updateScope(key, (s) => {
               s.briefs.push(brief);
             });
-            return { saved: true, id: brief.id, date: brief.date };
+            let notified = 0;
+            try {
+              notified = await notify(whoIsCalling(toolCtx), {
+                title: KIND_TITLES[kind],
+                body: text.slice(0, 120),
+                url: "/",
+              });
+            } catch {
+              // A failed notification must not lose the brief.
+            }
+            return { saved: true, id: brief.id, date: brief.date, notified };
           },
         }),
 
         latest_brief: defineTool({
-          description: "Return the most recent saved morning brief.",
-          inputSchema: z.object({}),
-          async execute() {
-            const briefs = (await readScope(key)).briefs;
+          description: "Return the most recent brief of a kind (daily, weekly or triage). Defaults to daily.",
+          inputSchema: z.object({ kind: z.enum(["daily", "weekly", "triage"]).default("daily") }),
+          async execute({ kind }) {
+            const briefs = (await readScope(key)).briefs.filter((b) => b.kind === kind);
             const latest = briefs[briefs.length - 1];
-            return latest ? { date: latest.date, text: latest.text } : { text: null, reason: "No brief yet." };
+            return latest ? { date: latest.date, text: latest.text } : { text: null, reason: `No ${kind} brief yet.` };
           },
         }),
       };

@@ -1,131 +1,161 @@
-# Your Assistant: a personal AI that learns from you
+# Juno: a personal assistant that learns from you
 
-A personal assistant built with [eve](https://eve.dev) for the eve Builder Challenge.
-It reads your calendar and mail, tells you what matters today, proposes calendar events
-for you to approve, and gets to know you over time: it remembers facts you share, learns
-from what you accept and reject, and reviews each night to update its picture of you.
-You can talk to it by voice from your phone: it installs to your home screen like an app.
+Juno is a personal assistant built with [eve](https://eve.dev). It runs on your phone like an app. It reads your calendar and mail, tells you what matters today, saves drafts of replies, adds the events you have approved, and gets to know you over time. You can talk to it out loud, and it can nudge you with notifications.
 
-## What it does
+Several people can have their own accounts, each with their own memory, name, avatar and Google connection.
 
-| Feature | How |
+## What Juno does
+
+| Feature | How it works |
 | --- | --- |
-| Morning brief with a motivational quote | Scheduled run at 07:00 reads calendar, Gmail and Slack, writes the brief, and saves it |
-| Calendar proposals | Suggests events from mail and Slack; creates one only after you approve that call |
-| Long-term memory | [Supermemory](https://supermemory.ai): extracts facts from each exchange, recalls them next time, supports forget |
-| Learning loop | Logs accepted, rejected and corrected suggestions; a nightly review corrects and forgets facts in Supermemory |
-| "What do you know about me?" | Searches Supermemory and lists what it holds |
-| Voice | Deepgram speech-to-text and text-to-speech, behind the agent's own routes |
-| Phone app | Mobile-first page (`voice/`), installable to the home screen, served by the agent itself |
+| **Morning brief and quote** | 07:00 each day: calendar, unread mail and Slack, a short brief, one motivational quote. Saved in the app and sent as a notification. |
+| **Mail triage with drafts** | Sorts unread mail and saves replies as **Gmail drafts**. Juno never sends mail. |
+| **Calendar proposals** | Suggests events from mail and Slack; creates one only after you approve that call. |
+| **Automatic calendar rules** | You approve a recurring rule once ("every Monday 09:00, standup, 30 min"). Juno then adds it every week, and you can remove it any time. |
+| **Weekly review** | Sunday 18:00: what went well, what is coming up, three suggestions. |
+| **Long-term memory** | [Supermemory](https://supermemory.ai) keeps facts about you and recalls them. A nightly review corrects facts from your feedback. |
+| **Voice** | Speak to Juno and hear replies. [Deepgram](https://deepgram.com) does speech-to-text and text-to-speech. |
+| **Notifications** | Web push to your phone when a brief or review is ready. |
+| **Name and avatar** | Rename Juno and pick an avatar, or upload your own picture. Each person chooses their own. |
+| **Accounts** | Invite-only sign-up. Each person has a separate memory and Google connection. |
 
 ## Architecture
 
 ```
 agent/
-  agent.ts                 model (Claude Haiku 5.5, cheapest good option)
-  instructions.md          personality and rules (approval before writes, no secrets)
-  memory/supermemory.ts    facts about the user (Supermemory provider)
-  memory/learning.ts       local log: exchanges, feedback, briefs (JSON file)
-  lib/learning-memory.ts   provider implementation for the local log
-  lib/scope.ts             who owns memory; scheduled runs map to the owner
-  tools/                   Google Calendar (read + create with approval), Gmail (read), Slack (read)
-  schedules/               morning-brief (07:00) and nightly-consolidation (02:30)
-  channels/eve.ts          HTTP API, protected with a username and password
-  channels/voice.ts        /eve/v1/voice/transcribe and /speak (Deepgram)
-  channels/home.ts         serves the phone app at /
-voice/                     phone app source: index.html, manifest, service worker, icons
-scripts/embed-voice.mjs    embeds voice/ into the agent (run by npm run dev/build)
+  agent.ts                  model (Claude Haiku 5.5), workflow history kept
+  instructions.md           Juno's personality and rules
+  channels/
+    eve.ts                  chat API: sign-in, per-person name and time zone
+    voice.ts                /eve/v1/voice/transcribe and /speak (Deepgram)
+    account.ts              accounts, settings, Google connect, push
+    jobs.ts                 /eve/v1/jobs/run (called by the daily schedules)
+    home.ts                 serves the phone app at /
+  schedules/                07:00 brief, 06:30 calendar rules, 02:30 review, Sunday 18:00 weekly
+  lib/
+    accounts.ts             users, password hashing, sign-in, invite codes
+    google.ts               each person's Google connection (OAuth)
+    push.ts                 web push notifications
+    jobs.ts                 the prompts for each job
+    learning-memory.ts      each person's log: exchanges, feedback, briefs
+    store.ts                durable documents (Vercel Blob or a local file)
+  memory/                   Supermemory facts, and the learning log
+  tools/                    calendar, Gmail (read and drafts), auto rules, Slack
+voice/                      phone app: index.html, service worker, manifest, avatar and icons
+scripts/embed-voice.mjs     embeds voice/ into the agent (run by npm run dev and build)
 ```
 
 Key design points:
 
-- **Approval before writes.** `create_calendar_event` uses `approval: always()`, so eve pauses and asks you every time.
-- **Read-only mail and Slack.** The agent never sends or deletes messages.
-- **Learning without fine-tuning.** Nothing is retrained. Memory is updated: Supermemory holds facts, and the nightly review rewrites them from your feedback and corrections.
-- **Cost control.** Recall is done by Supermemory (no profile injected every turn), the cheapest Claude model is the default, and the learning log is a local file.
+- **Approval before writes.** Creating a single calendar event asks you first. Creating an automatic rule asks you first. Juno never sends mail.
+- **Separate memory for each person.** Each signed-in account is its own memory scope, so people never see each other's facts.
+- **Read-only where it can be.** Calendar and mail reads don't change anything. Drafts are saved only in your Gmail drafts folder.
+- **Cost control.** Recall is done by Supermemory, the cheapest good Claude model is the default, and most work happens once a day.
 
-## Run it locally (free apart from model usage)
+## Set it up
 
-Requirements: Node.js 24 or newer.
+### 1. Requirements
+
+Node.js 24 or newer.
+
+### 2. Run it on your computer
 
 ```bash
 npm install
-cp .env.example .env        # fill in the keys you have; see below
-npm run dev                 # embeds the phone app, then starts the agent on http://localhost:2000
+cp .env.example .env        # fill in the keys you have
+npm run dev                 # starts Juno at http://localhost:2000
 ```
 
-Open http://localhost:2000 in a browser. Locally, requests are allowed without a password.
+Locally, requests don't need a password. Open http://localhost:2000 in a browser.
 
-To run the morning brief now, without waiting for 07:00:
+To try the morning brief now, without waiting:
 
 ```bash
 curl -X POST "http://localhost:2000/eve/v1/dev/schedules/morning-brief"
 ```
 
-## Use it on your phone
+### 3. Deploy it so your phone can reach it
 
-1. Deploy it (see *Deploy* below) so it has an HTTPS address. Microphones only work over HTTPS.
-2. Open the address in **Safari** (iPhone) or **Chrome** (Android). Enter the username and password from your environment settings when asked. Your phone remembers them.
-3. Install it: iPhone: Share → *Add to Home Screen*. Android: menu → *Install app*.
-4. Tap **Talk**, speak, then tap **Stop**. The reply is read aloud; turn that off with *Voice on*.
+Microphones and notifications only work over HTTPS, so deploy it. On Vercel's free Hobby plan:
 
-Chrome, Edge, Safari on iPhone and Android all record audio for this. A text box is always there as a fallback.
+1. Push this repo to GitHub and import it in Vercel.
+2. In Vercel, add a **private** Blob store (**Storage → Create → Blob**) to the project. This sets `BLOB_READ_WRITE_TOKEN`.
+3. Add the variables from `.env.example` under **Settings → Environment Variables**. Set `APP_URL` to your address, for example `https://juno.vercel.app`.
+4. Deploy with `npx eve deploy`, or push to the connected branch.
 
-## Connect the services (all free)
+### 4. Keys and services (all have free tiers)
 
-**Voice (Deepgram).** Create a free account at https://console.deepgram.com and set `DEEPGRAM_API_KEY`. The $200 free credit has no expiry, which covers a lot of personal use. The agent uses Nova-3 for transcription and Aura-2 for speech.
+| Service | What for | Set |
+| --- | --- | --- |
+| Model (AI Gateway or Anthropic) | Juno's replies | `AI_GATEWAY_API_KEY` or `ANTHROPIC_API_KEY` |
+| [Supermemory](https://console.supermemory.ai/keys) | Long-term memory ($5/month free credit) | `SUPERMEMORY_API_KEY` |
+| Invite code | People can create accounts | `INVITE_CODE` (choose any long phrase) |
+| `CRON_SECRET` | Lets scheduled jobs run | any long random string |
+| [Deepgram](https://console.deepgram.com) | Voice ($200 free credit, no expiry) | `DEEPGRAM_API_KEY` |
+| VAPID keys | Notifications (free) | run `npx web-push generate-vapid-keys`, set `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` and `VAPID_SUBJECT=mailto:you@example.com` |
+| Google Cloud OAuth client | Calendar and Gmail (free) | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` |
+| Slack bot (optional) | Slack messages (free) | `SLACK_BOT_TOKEN`, `SLACK_CHANNEL_IDS` |
 
-**Sign-in.** Set `ASSISTANT_USERNAME` and `ASSISTANT_PASSWORD` to values only you know. They protect the agent and its voice routes when it's deployed.
+### 5. Connect Google (once, for the whole app)
 
-**Model.** Use an AI Gateway key (`AI_GATEWAY_API_KEY`) or switch `agent/agent.ts` to the
-eve Anthropic helper and set `ANTHROPIC_API_KEY`. Haiku 5.5 keeps usage cheap for a personal assistant.
+1. In [Google Cloud Console](https://console.cloud.google.com), create a project and enable the **Google Calendar API** and the **Gmail API**.
+2. Under **OAuth consent screen**, choose *External*, add the scopes `calendar.readonly`, `calendar.events`, `gmail.readonly` and `gmail.compose`, and add each person's Google address as a **test user** while the app is in *Testing*.
+3. Under **Credentials**, create an **OAuth client ID** of type *Web application*. Add this redirect URI: `<APP_URL>/eve/v1/google/callback` (for example `https://juno.vercel.app/eve/v1/google/callback`).
+4. Set `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`.
 
-**Supermemory.** Create a free account at https://console.supermemory.ai/keys and set
-`SUPERMEMORY_API_KEY`. The free plan includes $5 of credits each month, which covers many
-days of personal use.
+Each person then connects their own account in **Settings → Connect Google**.
 
-**Connect Google (Calendar and Gmail).**
-1. In Google Cloud Console, create a project, enable the Google Calendar API and Gmail API, and create an OAuth client (type: Desktop app).
-2. Add these scopes: `calendar.readonly`, `calendar.events`, `gmail.readonly`.
-3. Run an OAuth consent flow once (for example with the [OAuth Playground](https://developers.google.com/oauthplayground), using your own client ID and secret) to get a refresh token.
-4. Set `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` and `GOOGLE_REFRESH_TOKEN`.
+### 6. Install it on your phone
 
-Google Cloud is free for these APIs at personal scale. While the OAuth app is in *Testing*, add yourself as a test user.
+- **iPhone:** open the link in Safari, tap Share, then *Add to Home Screen*. Notifications work once it's installed this way (iOS 16.4 or later).
+- **Android:** open the link in Chrome, then use the menu and *Install app*.
 
-**Slack (optional).** Create a free Slack app with a bot token, scopes `channels:history` and `channels:read`,
-invite the bot to the channels you want, and set `SLACK_BOT_TOKEN` and `SLACK_CHANNEL_IDS` (comma-separated IDs).
+Sign-up: tap **Settings → Create an account**, and enter the invite code you were given. Then reload the page and sign in.
 
-Anything you leave unset is reported as "not connected" and skipped, so the agent still runs.
+## Using Juno
 
-## Deploy on Vercel (free Hobby plan)
+- **Talk:** tap **Talk**, speak, then tap **Stop**. Turn spoken replies on or off with *Voice on/off*.
+- **Name and avatar:** **Settings → Name and avatar**. Choose a preset, or upload a picture.
+- **Time zone:** set it in Settings. Calendar events and the brief use it.
+- **Automatic rules:** ask in chat, e.g. "add my team standup every Monday at 9 for 30 minutes". Juno asks you to approve the rule. Manage rules in Settings.
+- **Notifications:** **Settings → Turn on notifications**, then *Send a test*.
 
-1. Push this repo to GitHub and import it in Vercel. Install the Vercel CLI if you prefer: `npx vercel`.
-2. In the Vercel dashboard, open **Storage → Create → Blob**, choose a **private** store, and connect it to the project. This sets `BLOB_READ_WRITE_TOKEN`.
-3. Add the other keys from `.env.example` under **Settings → Environment Variables** (model key, `SUPERMEMORY_API_KEY`, Google, Slack).
-4. Deploy with `npx eve deploy` (or push to the connected branch).
-5. The schedules run on Vercel Schedules. Hobby plans allow them at most every 15 minutes; these two run once a day.
+## Scheduled jobs
 
-Vercel's default auth protects the API. To use the voice page against a deployment, add your own auth in `agent/channels/eve.ts` first, then point the page's *Connection settings* at the deployed URL.
+Each job runs once for every person, as that person:
 
-## Free-tier and cost notes
+| When (New York time) | Job |
+| --- | --- |
+| 02:30 daily | Memory review: updates or forgets facts from your feedback |
+| 06:30 daily | Adds this week's events from approved rules |
+| 07:00 daily | Morning brief, mail triage drafts, notification |
+| Sunday 18:00 | Weekly review, notification |
+
+The times live in `agent/schedules/`. Change `timezone` there to move them.
+
+## Costs
 
 | Piece | Cost |
 | --- | --- |
 | eve, Node.js, this repo | Free (open source) |
-| Google Calendar, Gmail APIs | Free at personal scale |
+| Google Calendar and Gmail APIs | Free at personal scale |
 | Slack bot | Free |
 | Supermemory | Free plan: $5 of credits a month |
-| Voice (Deepgram Nova-3 and Aura-2) | Free $200 credit, no expiry; then pay as you go |
-| Model (Claude Haiku 5.5) | Pay per token; a typical day is a few cents. Check your provider's current pricing |
-| Hosting | Local: free. Vercel Hobby is free for personal use, with schedules limited to once per 15 minutes |
-| Storage | Vercel Blob has a free tier; one small JSON file per user is far below it |
+| Deepgram voice | Free $200 credit, no expiry |
+| Web push notifications | Free |
+| Vercel Hobby and Blob | Free tier, personal use |
+| Model (Claude Haiku 5.5) | Pay per token. A typical day is a few cents. Check current pricing |
 
-## Limits and honest notes
+## Privacy and limits
 
-- **Storage.** The learning log is a JSON file under `.eve-data/` locally, and a private Vercel Blob store when deployed (see *Deploy* below). Writes are last-write-wins, which is fine for one person's assistant.
-- **Model cost.** Every chat turn and scheduled run calls the model. Keep schedules to one or two a day.
-- **Access.** The app is protected by one username and password. That suits one person. For more people, replace it with real accounts (eve supports OIDC and JWT helpers) before sharing the link.
-- **Conversation history is kept.** `agent/agent.ts` sets `retention: "default"` so the phone app can show earlier messages. eve otherwise deletes a private conversation's history when it ends. The Workflow world keeps it for its default period. Delete conversations you don't want kept.
-- **Your voice and words go to Deepgram** for transcription and speech, and to the model provider for replies. Check their terms for anything sensitive.
-- **Memory is sensitive.** Supermemory stores extracted facts about you. Review its data settings and use the forget tool for anything you do not want kept.
-- **Not a substitute for judgment.** The agent proposes; you decide. It does not send mail or change anything without your approval.
+- **Who can see what.** Each person's memory, rules, Google token and notification subscriptions are kept on their account. The app only returns a person's own data to their own sign-in. Whoever controls the deployment's environment variables and storage can read everything stored, so protect those accounts with two-factor sign-in.
+- **Stored data.** Accounts (with hashed passwords), Google refresh tokens and each person's briefs and feedback are stored in your private Blob store. Conversations are kept in the workflow store so the app can show earlier messages. Delete conversations you don't want kept.
+- **Sent to services.** Your words and voice go to Deepgram and to the model provider. Mail and calendar content goes to the model provider when Juno reads it. Check their terms for anything sensitive.
+- **Google.** Juno asks for the minimum scopes listed above. Disconnect at any time in Settings; you can also revoke access in your Google account.
+- **Write conflicts.** Storage is last-write-wins. That's fine for a household, but two changes at the same instant can drop one.
+- **Schedules.** Vercel Hobby runs schedules at most every 15 minutes. These run once a day.
+- **Not a substitute for judgment.** Juno proposes, drafts, and asks. You decide.
+
+## Repository name
+
+The project is named **Juno** after the assistant. The GitHub repository is `juno`. If you fork it, rename the repo in its GitHub settings and update the `origin` remote.

@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-label="Juno">
+  <defs>
+    <radialGradient id="orb" cx="34%" cy="28%" r="78%">
+      <stop offset="0" stop-color="#ffe2b8"/>
+      <stop offset=".42" stop-color="#ff8a5b"/>
+      <stop offset="1" stop-color="#6b3fd6"/>
+    </radialGradient>
+    <mask id="crescent">
+      <rect width="256" height="256" fill="#fff"/>
+      <circle cx="166" cy="112" r="60" fill="#000"/>
+    </mask>
+  </defs>
+  <circle cx="128" cy="128" r="122" fill="url(#orb)"/>
+  <circle cx="122" cy="132" r="72" fill="#fff" opacity=".94" mask="url(#crescent)"/>
+  <circle cx="196" cy="186" r="8" fill="#fff" opacity=".85"/>
+</svg>

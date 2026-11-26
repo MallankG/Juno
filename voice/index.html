@@ -3,46 +3,47 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <meta name="theme-color" content="#2f6fed" />
+  <meta name="theme-color" content="#f5f4ef" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-title" content="Assistant" />
+  <meta name="apple-mobile-web-app-title" content="Juno" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <link rel="manifest" href="/manifest.webmanifest" />
   <link rel="icon" href="/icon-192.png" />
   <link rel="apple-touch-icon" href="/icon-192.png" />
-  <title>Your assistant</title>
+  <title>Juno</title>
   <style>
     :root {
       --bg: #f5f4ef; --card: #ffffff; --ink: #1d1d1b; --muted: #6b6a64; --line: #e4e2da;
-      --accent: #2f6fed; --accent-ink: #ffffff; --warn: #b26a00; --rec: #d33b3b;
+      --accent: #6b3fd6; --accent-ink: #ffffff; --warm: #ff8a5b; --rec: #d33b3b; --warn: #b26a00;
       color-scheme: light dark;
     }
     @media (prefers-color-scheme: dark) {
-      :root { --bg: #151513; --card: #21211e; --ink: #f2f1ec; --muted: #9b9a92; --line: #34332e; --accent: #6c9bff; --accent-ink: #0b0b0a; --warn: #f0a94a; --rec: #ff6b6b; }
+      :root { --bg: #151513; --card: #21211e; --ink: #f2f1ec; --muted: #9b9a92; --line: #34332e; --accent: #9b7bff; --accent-ink: #0b0b0a; --warn: #f0a94a; --rec: #ff6b6b; }
     }
     * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
     html, body { height: 100%; }
-    body {
-      margin: 0; background: var(--bg); color: var(--ink);
-      font: 16px/1.45 -apple-system, system-ui, "Segoe UI", Roboto, sans-serif;
-      display: flex; flex-direction: column;
-      padding-top: env(safe-area-inset-top);
-    }
-    header { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; gap: 8px; }
-    h1 { font-size: 18px; margin: 0; }
+    body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.45 -apple-system, system-ui, "Segoe UI", Roboto, sans-serif; display: flex; flex-direction: column; padding-top: env(safe-area-inset-top); }
+    header { display: flex; align-items: center; gap: 10px; padding: 10px 14px; }
+    .avatar { width: 40px; height: 40px; border-radius: 50%; overflow: hidden; flex: none; display: grid; place-items: center; }
+    .avatar svg, .avatar img { width: 100%; height: 100%; display: block; }
+    .who { flex: 1; min-width: 0; }
+    .who strong { display: block; font-size: 17px; }
+    #tagline { font-size: 13px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .tools { display: flex; gap: 2px; }
-    .icon-btn { border: 0; background: none; color: var(--accent); font: inherit; font-size: 15px; padding: 8px 10px; min-height: 44px; border-radius: 12px; }
+    .icon-btn { border: 0; background: none; color: var(--accent); font: inherit; font-size: 15px; padding: 8px 9px; min-height: 44px; border-radius: 12px; }
     #log { flex: 1; overflow-y: auto; padding: 4px 14px 12px; display: flex; flex-direction: column; gap: 10px; -webkit-overflow-scrolling: touch; }
     .empty { color: var(--muted); text-align: center; margin: auto; padding: 24px; }
-    .msg { max-width: 88%; padding: 10px 13px; border-radius: 16px; white-space: pre-wrap; word-wrap: break-word; }
+    .row-them { display: flex; gap: 8px; align-items: flex-end; align-self: stretch; }
+    .row-them .avatar { width: 28px; height: 28px; }
+    .msg { max-width: 84%; padding: 10px 13px; border-radius: 16px; white-space: pre-wrap; word-wrap: break-word; }
     .you { background: var(--accent); color: var(--accent-ink); align-self: flex-end; border-bottom-right-radius: 4px; }
-    .them { background: var(--card); border: 1px solid var(--line); align-self: flex-start; border-bottom-left-radius: 4px; }
+    .them { background: var(--card); border: 1px solid var(--line); border-bottom-left-radius: 4px; }
     .approval { border-color: var(--warn); }
     .chips { display: flex; gap: 8px; overflow-x: auto; padding: 0 14px 10px; scrollbar-width: none; }
     .chips::-webkit-scrollbar { display: none; }
     .chip { flex: none; border: 1px solid var(--line); background: var(--card); color: var(--ink); border-radius: 999px; padding: 9px 14px; font: inherit; font-size: 15px; min-height: 40px; }
     .dock { border-top: 1px solid var(--line); background: var(--bg); padding: 10px 12px calc(10px + env(safe-area-inset-bottom)); display: flex; align-items: center; gap: 8px; }
-    #text { flex: 1; min-width: 0; font: inherit; font-size: 16px; /* 16px stops iOS zooming on focus */ padding: 11px 14px; border-radius: 22px; border: 1px solid var(--line); background: var(--card); color: var(--ink); min-height: 48px; }
+    #text { flex: 1; min-width: 0; font: inherit; font-size: 16px; padding: 11px 14px; border-radius: 22px; border: 1px solid var(--line); background: var(--card); color: var(--ink); min-height: 48px; }
     .round { flex: none; border: 0; font: inherit; font-size: 15px; font-weight: 600; background: var(--accent); color: var(--accent-ink); display: grid; place-items: center; min-width: 52px; height: 52px; border-radius: 26px; padding: 0 10px; }
     .round:disabled { opacity: .45; }
     #mic { width: 52px; padding: 0; }
@@ -50,32 +51,51 @@
     #send { background: transparent; color: var(--accent); border: 1px solid var(--accent); }
     @keyframes pulse { 0%,100% { box-shadow: 0 0 0 0 rgba(211,59,59,.45); } 50% { box-shadow: 0 0 0 12px rgba(211,59,59,0); } }
     #status { font-size: 14px; color: var(--muted); text-align: center; min-height: 1.4em; padding: 0 14px 4px; }
-    dialog { border: 0; border-radius: 16px; background: var(--card); color: var(--ink); width: min(92vw, 420px); padding: 20px; }
+    dialog { border: 0; border-radius: 18px; background: var(--card); color: var(--ink); width: min(94vw, 460px); max-height: 88vh; padding: 0; }
     dialog::backdrop { background: rgba(0,0,0,.4); }
-    dialog p { color: var(--muted); font-size: 15px; }
-    .close { margin-top: 12px; width: 100%; min-height: 46px; border-radius: 12px; border: 0; background: var(--accent); color: var(--accent-ink); font: inherit; }
+    .sheet { padding: 20px; overflow-y: auto; max-height: 88vh; }
+    .sheet h2 { margin: 0 0 6px; font-size: 19px; }
+    .sheet h3 { margin: 18px 0 8px; font-size: 14px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+    .sheet p { color: var(--muted); font-size: 15px; margin: 6px 0; }
+    label { display: block; font-size: 14px; color: var(--muted); margin-top: 12px; }
+    input[type=text], input[type=password], input[list] { width: 100%; font: inherit; font-size: 16px; padding: 11px 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); min-height: 46px; margin-top: 4px; }
+    .avatars { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 8px; }
+    .pick { border: 2px solid transparent; background: none; padding: 0; border-radius: 50%; width: 64px; height: 64px; min-height: 0; }
+    .pick.on { border-color: var(--accent); }
+    .pick svg { width: 100%; height: 100%; display: block; border-radius: 50%; }
+    .btn { font: inherit; border: 1px solid var(--line); background: var(--bg); color: var(--ink); border-radius: 12px; padding: 11px 14px; min-height: 46px; margin: 6px 6px 0 0; }
+    .btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+    .btn.danger { color: var(--rec); }
+    .rule { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 10px 0; border-bottom: 1px solid var(--line); font-size: 15px; }
+    .close { margin-top: 16px; width: 100%; }
+    .note { font-size: 13px; color: var(--muted); }
+    .ok { color: var(--accent); }
   </style>
 </head>
 <body>
 <header>
-  <h1>Your assistant</h1>
+  <div class="avatar" id="headAvatar" aria-hidden="true"></div>
+  <div class="who">
+    <strong id="agentName">Juno</strong>
+    <span id="tagline">Your personal assistant</span>
+  </div>
   <div class="tools">
     <button class="icon-btn" id="voiceToggle">Voice on</button>
     <button class="icon-btn" id="newChat">New</button>
-    <button class="icon-btn" id="help" aria-label="Install and help">?</button>
+    <button class="icon-btn" id="settingsBtn" aria-label="Settings">Settings</button>
   </div>
 </header>
 
 <div id="log" aria-live="polite">
   <div class="empty" id="empty">Tap Talk and speak, or type a message.</div>
 </div>
-
 <div id="status"></div>
 
 <div class="chips">
   <button class="chip" data-say="What's my latest morning brief? Keep it short.">My brief</button>
   <button class="chip" data-say="Plan my day around my calendar. What should I focus on first?">Plan my day</button>
   <button class="chip" data-say="Prep me for my next meeting.">Next meeting</button>
+  <button class="chip" data-say="Look through my unread mail and draft replies where needed.">Triage mail</button>
   <button class="chip" data-say="What do you know about me?">What do you know?</button>
 </div>
 
@@ -85,11 +105,70 @@
   <button type="submit" class="round" id="send" aria-label="Send">Send</button>
 </form>
 
-<dialog id="helpDialog">
-  <p><strong>Use it like an app.</strong> On iPhone, open this page in Safari, tap Share, then <em>Add to Home Screen</em>. On Android, use the browser menu and <em>Install app</em>.</p>
-  <p>Tap <strong>Talk</strong> to start, speak, then tap <strong>Stop</strong>. Replies are read aloud while Voice is on. Your browser asks for the username and password once.</p>
-  <button class="close" id="closeHelp">Got it</button>
-</dialog>
+<!-- Settings -->
+<dialog id="settingsDialog"><div class="sheet">
+  <h2>Your assistant</h2>
+  <p class="note" id="accountLine">Signing in…</p>
+
+  <h3>Name and avatar</h3>
+  <label for="nameInput">Name</label>
+  <input id="nameInput" type="text" maxlength="24" placeholder="Juno" />
+  <label>Avatar</label>
+  <div class="avatars" id="avatarGrid"></div>
+  <label for="avatarFile" class="note" style="margin-top:10px">Or upload your own picture (under 200 KB after resizing)</label>
+  <input id="avatarFile" type="file" accept="image/*" />
+
+  <h3>Time zone</h3>
+  <input id="tzInput" type="text" list="zones" placeholder="America/New_York" />
+  <datalist id="zones">
+    <option>America/New_York</option><option>America/Chicago</option><option>America/Denver</option>
+    <option>America/Los_Angeles</option><option>Europe/London</option><option>Europe/Paris</option>
+    <option>Asia/Kolkata</option><option>Asia/Singapore</option><option>Australia/Sydney</option>
+  </datalist>
+  <div class="row-btns"><button class="btn primary" id="saveSettings">Save</button></div>
+
+  <h3>Google calendar and mail</h3>
+  <p id="googleLine">Not connected.</p>
+  <button class="btn" id="googleConnect">Connect Google</button>
+  <button class="btn danger" id="googleDisconnect">Disconnect</button>
+
+  <h3>Automatic calendar events</h3>
+  <p class="note">Rules you approved in chat. The assistant adds these events each week.</p>
+  <div id="rules"></div>
+
+  <h3>Notifications</h3>
+  <p id="pushLine" class="note">Get a message when your brief is ready. On iPhone, add this app to your home screen first.</p>
+  <button class="btn" id="pushEnable">Turn on notifications</button>
+  <button class="btn" id="pushTest">Send a test</button>
+
+  <h3>New here?</h3>
+  <button class="btn" id="registerOpen">Create an account</button>
+  <button class="btn" id="help">How to install this app</button>
+
+  <button class="btn close" id="closeSettings">Done</button>
+</div></dialog>
+
+<!-- Create account -->
+<dialog id="registerDialog"><div class="sheet">
+  <h2>Create an account</h2>
+  <p>You need an invite code from the person who runs this assistant.</p>
+  <label for="regUser">Username</label>
+  <input id="regUser" type="text" autocapitalize="off" autocomplete="username" />
+  <label for="regPass">Password (8 characters or more)</label>
+  <input id="regPass" type="password" autocomplete="new-password" />
+  <label for="regCode">Invite code</label>
+  <input id="regCode" type="text" autocapitalize="off" />
+  <p id="regMsg" class="note"></p>
+  <button class="btn primary" id="regSubmit">Create account</button>
+  <button class="btn" id="regClose">Cancel</button>
+</div></dialog>
+
+<dialog id="helpDialog"><div class="sheet">
+  <h2>Use it like an app</h2>
+  <p>On iPhone, open this page in Safari, tap Share, then <em>Add to Home Screen</em>. On Android, use the browser menu and <em>Install app</em>.</p>
+  <p>Tap <strong>Talk</strong> to start, speak, then tap <strong>Stop</strong>. Replies are read aloud while Voice is on.</p>
+  <button class="btn primary close" id="closeHelp">Got it</button>
+</div></dialog>
 
 <audio id="player" playsinline preload="auto"></audio>
 
@@ -104,23 +183,70 @@
   };
   const SILENT = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=";
 
+  // ---- avatars: one orb style, many colours and glyphs ----
+  const AVATARS = {
+    juno:        { stops: ["#ffe2b8", "#ff8a5b", "#6b3fd6"], glyph: "moon" },
+    "orb-ember": { stops: ["#fff1c1", "#ffb03b", "#c4351e"], glyph: "sun" },
+    "orb-ocean": { stops: ["#d8f7ff", "#38b6d6", "#1c3d8f"], glyph: "wave" },
+    "orb-moss":  { stops: ["#f2ffd8", "#7fc96b", "#2d6b3a"], glyph: "leaf" },
+    "orb-dusk":  { stops: ["#ffe1f3", "#e26bb6", "#3c2a7a"], glyph: "star" },
+    "orb-sand":  { stops: ["#fffaf0", "#e7c9a0", "#7a5a34"], glyph: "ring" },
+  };
+  let uid = 0;
+  function avatarSvg(id) {
+    const a = AVATARS[id] || AVATARS.juno;
+    const g = "g" + (++uid), m = "m" + uid;
+    const glyph = {
+      moon: `<mask id="${m}"><rect width="256" height="256" fill="#fff"/><circle cx="166" cy="112" r="60" fill="#000"/></mask><circle cx="122" cy="132" r="72" fill="#fff" opacity=".94" mask="url(#${m})"/>`,
+      sun: `<circle cx="128" cy="128" r="46" fill="#fff" opacity=".92"/>`,
+      wave: `<path d="M40 150 q22 -22 44 0 t44 0 t44 0 t44 0" stroke="#fff" stroke-width="16" fill="none" stroke-linecap="round" opacity=".92"/><path d="M40 190 q22 -22 44 0 t44 0 t44 0 t44 0" stroke="#fff" stroke-width="12" fill="none" stroke-linecap="round" opacity=".6"/>`,
+      leaf: `<path d="M86 170 C86 100 140 70 186 74 C186 130 150 176 86 170 Z" fill="#fff" opacity=".92"/><path d="M86 170 L150 110" stroke="#2d6b3a" stroke-width="6" opacity=".5"/>`,
+      star: `<path d="M128 56 L144 106 L196 108 L154 138 L170 190 L128 160 L86 190 L102 138 L60 108 L112 106 Z" fill="#fff" opacity=".92"/>`,
+      ring: `<circle cx="128" cy="128" r="52" fill="none" stroke="#fff" stroke-width="18" opacity=".92"/>`,
+    }[a.glyph];
+    return `<svg viewBox="0 0 256 256" aria-hidden="true"><defs><radialGradient id="${g}" cx="34%" cy="28%" r="78%"><stop offset="0" stop-color="${a.stops[0]}"/><stop offset=".42" stop-color="${a.stops[1]}"/><stop offset="1" stop-color="${a.stops[2]}"/></radialGradient></defs><circle cx="128" cy="128" r="122" fill="url(#${g})"/>${glyph}</svg>`;
+  }
+
+  let profile = null;
   let sessionId = store.get("sessionId", "");
   let speakOn = store.get("speak", "on") === "on";
-  let busy = false;
-  let recorder = null, chunks = [], micStream = null;
+  let busy = false, recorder = null, chunks = [], micStream = null;
   const queue = [];
 
   const setStatus = (t) => { statusEl.textContent = t; };
   const clearEmpty = () => { const e = $("empty"); if (e) e.remove(); };
   const scroll = () => { log.scrollTop = log.scrollHeight; };
   const authError = (msg) => Object.assign(new Error(msg), { auth: true });
+  const agentName = () => (profile && profile.agentName) || "Juno";
+
+  function paintHeader() {
+    const avatar = !profile || profile.avatar !== "custom" ? avatarSvg(profile ? profile.avatar : "juno") : `<img alt="" src="${profile.avatarData}">`;
+    $("headAvatar").innerHTML = avatar;
+    $("agentName").textContent = agentName();
+    document.title = agentName();
+  }
 
   function bubble(cls, text) {
     clearEmpty();
-    const el = document.createElement("div");
-    el.className = "msg " + cls;
-    el.textContent = text;
-    log.appendChild(el); scroll();
+    let el;
+    if (cls.startsWith("them")) {
+      const row = document.createElement("div");
+      row.className = "row-them";
+      const av = document.createElement("div");
+      av.className = "avatar";
+      av.innerHTML = profile && profile.avatar === "custom" ? `<img alt="" src="${profile.avatarData}">` : avatarSvg(profile ? profile.avatar : "juno");
+      el = document.createElement("div");
+      el.className = "msg " + cls;
+      el.textContent = text;
+      row.append(av, el);
+      log.appendChild(row);
+    } else {
+      el = document.createElement("div");
+      el.className = "msg " + cls;
+      el.textContent = text;
+      log.appendChild(el);
+    }
+    scroll();
     return el;
   }
 
@@ -143,9 +269,7 @@
     if (queue.length === 0) return;
     const chunk = queue.shift();
     try {
-      const res = await fetch("/eve/v1/voice/speak", {
-        method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ text: chunk }),
-      });
+      const res = await fetch("/eve/v1/voice/speak", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ text: chunk }) });
       if (res.status === 401) throw authError("Please sign in.");
       if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || `HTTP ${res.status}`);
       const url = URL.createObjectURL(await res.blob());
@@ -153,7 +277,6 @@
       player.src = url;
       await player.play();
     } catch (err) {
-      // Voice is a convenience: the text is already on screen, so keep going.
       setStatus(`Voice unavailable: ${err.message.slice(0, 90)}`);
       queue.length = 0;
     }
@@ -161,15 +284,11 @@
 
   function say(text) {
     if (!speakOn || !text) return;
-    queue.length = 0;
-    queue.push(...chunkText(text));
-    speakNext();
+    queue.length = 0; queue.push(...chunkText(text)); speakNext();
   }
 
-  async function postJson(path, body) {
-    const res = await fetch(path, {
-      method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body),
-    });
+  async function postJson(path, body, method = "POST") {
+    const res = await fetch(path, { method, headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
     if (res.status === 401) throw authError("Please sign in.");
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
@@ -200,7 +319,7 @@
   async function send(text) {
     text = text.trim();
     if (busy || !text) return;
-    busy = true; setStatus("Thinking…"); $("send").disabled = true;
+    busy = true; setStatus(`${agentName()} is thinking…`); $("send").disabled = true;
     bubble("you", text);
     try {
       let startIndex = 0;
@@ -246,15 +365,12 @@
         const reply = Array.isArray(d.reply) ? d.reply.join("\n\n") : "";
         if (reply && !streamed) bubble("them", reply);
         if (reply) say(reply);
-        if (!reply && d.outcome && d.outcome !== "completed") {
-          bubble("them", "I couldn't finish that. Please try again in a moment.");
-        }
+        if (!reply && d.outcome && d.outcome !== "completed") bubble("them", "I couldn't finish that. Please try again in a moment.");
         setStatus("");
         done = true;
       }
       if (ev.type === "session.ended") {
-        // A failed turn ends its session. Start fresh on the next message.
-        sessionId = ""; store.del("sessionId");
+        sessionId = ""; store.del("sessionId"); // a failed turn ends its session; start fresh next time
         setStatus("");
         done = true;
       }
@@ -278,7 +394,7 @@
 
   function renderApproval(item) {
     const id = item.interactionId;
-    const label = item.title || item.prompt || item.label || "The assistant wants to run an action.";
+    const label = item.title || item.prompt || item.label || `${agentName()} wants to run an action.`;
     const el = bubble("them approval", label + "\nApprove this?");
     const row = document.createElement("div");
     row.className = "chips"; row.style.padding = "8px 0 0";
@@ -302,22 +418,15 @@
 
   // ---- Talk: record here, transcribe with Deepgram on the agent ----
   function pickMime() {
-    const options = ["audio/mp4", "audio/webm;codecs=opus", "audio/webm", "audio/ogg;codecs=opus"];
-    return options.find((t) => window.MediaRecorder && MediaRecorder.isTypeSupported(t));
+    return ["audio/mp4", "audio/webm;codecs=opus", "audio/webm", "audio/ogg;codecs=opus"]
+      .find((t) => window.MediaRecorder && MediaRecorder.isTypeSupported(t));
   }
 
   async function startTalking() {
     unlockAudio();
-    if (!navigator.mediaDevices || !window.MediaRecorder) {
-      setStatus("This browser can't record audio. Type your message instead.");
-      return;
-    }
-    try {
-      micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    } catch {
-      setStatus("Microphone is blocked. Allow it in your browser settings.");
-      return;
-    }
+    if (!navigator.mediaDevices || !window.MediaRecorder) { setStatus("This browser can't record audio. Type your message instead."); return; }
+    try { micStream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
+    catch { setStatus("Microphone is blocked. Allow it in your browser settings."); return; }
     const mime = pickMime();
     recorder = new MediaRecorder(micStream, mime ? { mimeType: mime } : undefined);
     chunks = [];
@@ -347,23 +456,166 @@
     }
   }
 
-  mic.onclick = () => {
-    if (recorder && recorder.state === "recording") recorder.stop();
-    else startTalking();
+  mic.onclick = () => { if (recorder && recorder.state === "recording") recorder.stop(); else startTalking(); };
+
+  // ---- Settings, accounts, Google, notifications ----
+  async function loadProfile() {
+    try {
+      const res = await fetch("/eve/v1/account");
+      if (res.status === 401) { $("accountLine").textContent = "Not signed in. Reload the page and enter your username and password."; return; }
+      if (!res.ok) return;
+      profile = await res.json();
+      paintHeader();
+      $("accountLine").textContent = `Signed in as ${profile.username}.`;
+      $("nameInput").value = profile.agentName;
+      $("tzInput").value = profile.timezone;
+      $("googleLine").textContent = profile.googleConnected ? "Connected. Your calendar and mail are available." : "Not connected.";
+      $("googleConnect").textContent = profile.googleConnected ? "Reconnect Google" : "Connect Google";
+      renderRules();
+      paintAvatarPicks();
+      const sub = await currentSubscription();
+      $("pushLine").textContent = sub ? "Notifications are on for this device." : "Get a message when your brief is ready. On iPhone, add this app to your home screen first.";
+    } catch {}
+  }
+
+  let chosenAvatar = null;
+  function paintAvatarPicks() {
+    const grid = $("avatarGrid");
+    const current = chosenAvatar || (profile && profile.avatar) || "juno";
+    grid.innerHTML = "";
+    for (const id of Object.keys(AVATARS)) {
+      const b = document.createElement("button");
+      b.className = "pick" + (id === current ? " on" : "");
+      b.setAttribute("aria-label", id);
+      b.innerHTML = avatarSvg(id);
+      b.onclick = () => { chosenAvatar = id; paintAvatarPicks(); };
+      grid.appendChild(b);
+    }
+    if (profile && profile.avatar === "custom" && !chosenAvatar) {
+      const b = document.createElement("button");
+      b.className = "pick on";
+      b.innerHTML = `<img alt="Your picture" src="${profile.avatarData}" style="width:100%;height:100%;border-radius:50%;object-fit:cover">`;
+      grid.appendChild(b);
+    }
+  }
+
+  function renderRules() {
+    const box = $("rules");
+    box.innerHTML = "";
+    const rules = (profile && profile.autoRules) || [];
+    if (!rules.length) { box.innerHTML = '<p class="note">No rules yet. Ask in chat, e.g. "add my Monday standup at 9 every week".</p>'; return; }
+    const names = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    for (const r of rules) {
+      const row = document.createElement("div");
+      row.className = "rule";
+      const label = document.createElement("span");
+      label.textContent = `${r.title}: ${names[r.weekday]} ${r.startTime} (${r.durationMinutes} min)`;
+      const btn = document.createElement("button");
+      btn.className = "btn danger"; btn.textContent = "Remove";
+      btn.onclick = async () => {
+        try { profile = await postJson("/eve/v1/account/rules/remove", { id: r.id }); renderRules(); }
+        catch (err) { setStatus(err.message); }
+      };
+      row.append(label, btn);
+      box.appendChild(row);
+    }
+  }
+
+  $("saveSettings").onclick = async () => {
+    try {
+      const body = { agentName: $("nameInput").value, timezone: $("tzInput").value.trim() };
+      const file = $("avatarFile").files[0];
+      if (file) body.avatarData = await resizeImage(file);
+      else if (chosenAvatar) body.avatar = chosenAvatar;
+      profile = await postJson("/eve/v1/account/settings", body, "POST");
+      chosenAvatar = null;
+      paintHeader(); paintAvatarPicks();
+      setStatus("Saved.");
+    } catch (err) {
+      setStatus(err.auth ? "Please sign in." : err.message);
+    }
   };
 
-  // ---- wiring ----
-  $("form").onsubmit = (e) => {
-    e.preventDefault();
-    unlockAudio();
-    const t = input.value; input.value = ""; send(t);
+  function resizeImage(file) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => {
+        const size = 256, canvas = document.createElement("canvas");
+        canvas.width = size; canvas.height = size;
+        const ctx = canvas.getContext("2d");
+        const s = Math.min(img.width, img.height);
+        ctx.drawImage(img, (img.width - s) / 2, (img.height - s) / 2, s, s, 0, 0, size, size);
+        resolve(canvas.toDataURL("image/jpeg", 0.85));
+      };
+      img.onerror = () => reject(new Error("That picture could not be read."));
+      img.src = URL.createObjectURL(file);
+    });
+  }
+
+  $("googleConnect").onclick = () => { window.location.href = "/eve/v1/google/connect"; };
+  $("googleDisconnect").onclick = async () => {
+    try { profile = await postJson("/eve/v1/google/disconnect", {}); $("googleLine").textContent = "Not connected."; $("googleConnect").textContent = "Connect Google"; }
+    catch (err) { setStatus(err.message); }
   };
-  document.querySelectorAll(".chip[data-say]").forEach((b) => {
-    b.onclick = () => { unlockAudio(); send(b.dataset.say); };
-  });
+
+  async function currentSubscription() {
+    if (!("serviceWorker" in navigator) || !("PushManager" in window)) return null;
+    const reg = await navigator.serviceWorker.ready;
+    return reg.pushManager.getSubscription();
+  }
+
+  function b64ToUint8(base64) {
+    const pad = "=".repeat((4 - (base64.length % 4)) % 4);
+    const raw = atob((base64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
+    return Uint8Array.from([...raw].map((c) => c.charCodeAt(0)));
+  }
+
+  $("pushEnable").onclick = async () => {
+    try {
+      if (!("serviceWorker" in navigator) || !("PushManager" in window)) throw new Error("Notifications need the app installed to the home screen on iPhone.");
+      const perm = await Notification.requestPermission();
+      if (perm !== "granted") throw new Error("Notifications are blocked. Allow them in your phone's settings.");
+      const keyRes = await fetch("/eve/v1/push/key");
+      const { publicKey, reason } = await keyRes.json();
+      if (!publicKey) throw new Error(reason || "Notifications are not set up on this agent.");
+      const reg = await navigator.serviceWorker.ready;
+      const sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64ToUint8(publicKey) });
+      await postJson("/eve/v1/push/subscribe", sub.toJSON());
+      $("pushLine").textContent = "Notifications are on for this device.";
+      setStatus("Notifications on.");
+    } catch (err) { setStatus(err.auth ? "Please sign in." : err.message); }
+  };
+  $("pushTest").onclick = async () => {
+    try { const r = await postJson("/eve/v1/push/test", {}); setStatus(r.sent ? "Test sent." : "No device is subscribed yet."); }
+    catch (err) { setStatus(err.message); }
+  };
+
+  $("registerOpen").onclick = () => { $("registerDialog").showModal(); };
+  $("regClose").onclick = () => $("registerDialog").close();
+  $("regSubmit").onclick = async () => {
+    const msg = $("regMsg");
+    msg.textContent = "Creating…";
+    try {
+      const res = await fetch("/eve/v1/account/register", {
+        method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ username: $("regUser").value, password: $("regPass").value, inviteCode: $("regCode").value }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+      msg.textContent = `Account "${data.username}" created. Reload the page and sign in with it.`;
+      msg.className = "note ok";
+    } catch (err) { msg.textContent = err.message; msg.className = "note"; }
+  };
+
+  $("settingsBtn").onclick = () => { chosenAvatar = null; loadProfile(); $("settingsDialog").showModal(); };
+  $("closeSettings").onclick = () => $("settingsDialog").close();
+
+  // ---- wiring ----
+  $("form").onsubmit = (e) => { e.preventDefault(); unlockAudio(); const t = input.value; input.value = ""; send(t); };
+  document.querySelectorAll(".chip[data-say]").forEach((b) => { b.onclick = () => { unlockAudio(); send(b.dataset.say); }; });
   $("newChat").onclick = () => {
     sessionId = ""; store.del("sessionId");
-    log.innerHTML = '<div class="empty" id="empty">New conversation. What is on your mind?</div>';
+    log.innerHTML = `<div class="empty" id="empty">New conversation. What is on your mind?</div>`;
     setStatus("");
   };
   const voiceBtn = $("voiceToggle");
@@ -376,6 +628,8 @@
   $("help").onclick = () => $("helpDialog").showModal();
   $("closeHelp").onclick = () => $("helpDialog").close();
 
+  paintHeader();
+  loadProfile();
   if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => {});
 })();
 </script>
