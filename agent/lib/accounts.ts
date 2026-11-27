@@ -236,11 +236,17 @@ export async function authenticate(
   return { username: result.principalId };
 }
 
-/** Creates a new account. Needs the invite code when INVITE_CODE is set; open sign-up otherwise. */
-export const inviteRequired = () => Boolean(process.env.INVITE_CODE);
+/**
+ * Invite codes are switched on with INVITE_REQUIRED=on (or true/1/yes) and
+ * need INVITE_CODE to be set too. Off by default: anyone can sign up.
+ */
+export const inviteRequired = () =>
+  /^(on|true|1|yes)$/i.test((process.env.INVITE_REQUIRED ?? "").trim()) && Boolean(process.env.INVITE_CODE);
+
+/** Creates a new account. Needs the invite code when invites are switched on. */
 
 export async function register(username: string, password: string, inviteCode: string): Promise<User> {
-  const expected = process.env.INVITE_CODE ?? "";
+  const expected = inviteRequired() ? (process.env.INVITE_CODE ?? "") : "";
   if (expected && inviteCode.trim() !== expected) throw new Error("That invite code is not valid.");
   if (!USERNAME_PATTERN.test(username)) {
     throw new Error("Use 3 to 24 letters, numbers, dashes or underscores for the username.");

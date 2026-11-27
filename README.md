@@ -99,7 +99,7 @@ Microphones and notifications only work over HTTPS, so deploy it. On Vercel's fr
 | --- | --- | --- |
 | [Groq](https://console.groq.com/keys) | Juno's replies (free tier, `openai/gpt-oss-20b`) | `GROQ_API_KEY` (optional `GROQ_MODEL`) |
 | [Supermemory](https://console.supermemory.ai/keys) | Long-term memory ($5/month free credit) | `SUPERMEMORY_API_KEY` |
-| Invite code | People can create accounts | `INVITE_CODE` (choose any long phrase) |
+| Invite code (optional) | Only people with the code can sign up | `INVITE_REQUIRED=on` and `INVITE_CODE` (any long phrase). Off by default. |
 | `CRON_SECRET` | Lets scheduled jobs run | any long random string |
 | [Deepgram](https://console.deepgram.com) | Voice ($200 free credit, no expiry) | `DEEPGRAM_API_KEY` |
 | VAPID keys | Notifications (free) | run `npx web-push generate-vapid-keys`, set `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` and `VAPID_SUBJECT=mailto:you@example.com` |
@@ -122,7 +122,7 @@ Each person then connects their own account in **Settings → Connect Google**.
 
 ### How people get in
 
-Share your address (for example https://juno-mallank.vercel.app). Each person opens it, taps **Create account**, picks a username and password (plus the invite code, if you set `INVITE_CODE`), and is signed in straight away. They then add it to their home screen as above. Leave `INVITE_CODE` unset to let anyone sign up; set it to keep Juno private.
+Share your address (for example https://juno-mallank.vercel.app). Each person opens it, taps **Create account**, picks a username and password (plus the invite code, if invites are on), and is signed in straight away. They then add it to their home screen as above. Invites are off by default, so anyone can sign up. To keep Juno private, set `INVITE_REQUIRED=on` and `INVITE_CODE`; set `INVITE_REQUIRED=off` to open it again without deleting the code.
 
 Set `AUTH_SECRET` (any long random string) in production. It signs the sign-in tokens; changing it signs everyone out.
 
