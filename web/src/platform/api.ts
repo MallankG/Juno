@@ -93,7 +93,13 @@ export const eventsOf = (record: unknown, out: Array<StreamEvent> = []): Array<S
   return out
 }
 
-/** Reads a turn's events as they arrive. Calls onEvent for each, and stops when signal aborts. */
+const FINAL = new Set(["turn.settled", "turn.paused", "session.ended"])
+
+/**
+ * Reads a turn's events as they arrive, until the turn settles, pauses for
+ * approval, or signal aborts. The server may close a live stream at any time;
+ * when it does before the turn is over, this reconnects from the next record.
+ */
 export const followTurn = async (
   token: string,
   sessionId: string,
@@ -101,34 +107,61 @@ export const followTurn = async (
   onEvent: (event: StreamEvent) => void,
   signal: AbortSignal
 ): Promise<void> => {
-  const res = await fetch(`/eve/v1/session/${sessionId}/stream?startIndex=${startIndex}&follow=true`, {
-    headers: token ? { authorization: `Bearer ${token}` } : {},
-    signal
-  })
-  if (!res.ok || !res.body) throw new ApiFailure(explain(res.status, null, null), res.status)
-  const reader = res.body.getReader()
-  const decoder = new TextDecoder()
-  let buffer = ""
-  try {
-    for (;;) {
-      const { value, done } = await reader.read()
-      if (done) return
-      buffer += decoder.decode(value, { stream: true })
-      let nl: number
-      while ((nl = buffer.indexOf("\n")) >= 0) {
-        const line = buffer.slice(0, nl).trim()
-        buffer = buffer.slice(nl + 1)
-        if (!line) continue
-        let parsed: unknown
-        try {
-          parsed = JSON.parse(line)
-        } catch {
-          continue
+  let index = startIndex
+  let finished = false
+  let failures = 0
+  const seenParts = new Set<string>()
+  while (!finished && !signal.aborted) {
+    let gotRecords = false
+    try {
+      const res = await fetch(`/eve/v1/session/${sessionId}/stream?startIndex=${index}&follow=true`, {
+        headers: token ? { authorization: `Bearer ${token}` } : {},
+        signal
+      })
+      if (!res.ok || !res.body) throw new ApiFailure(explain(res.status, null, null), res.status)
+      const reader = res.body.getReader()
+      const decoder = new TextDecoder()
+      let buffer = ""
+      try {
+        while (!finished) {
+          const { value, done } = await reader.read()
+          if (done) break
+          buffer += decoder.decode(value, { stream: true })
+          let nl: number
+          while ((nl = buffer.indexOf("\n")) >= 0) {
+            const line = buffer.slice(0, nl).trim()
+            buffer = buffer.slice(nl + 1)
+            if (!line) continue
+            let parsed: unknown
+            try {
+              parsed = JSON.parse(line)
+            } catch {
+              continue
+            }
+            if (parsed && typeof parsed === "object" && "$eve" in parsed) continue // heartbeat
+            index++
+            gotRecords = true
+            for (const event of eventsOf(parsed)) {
+              // A reconnect can repeat a record; never show the same text twice.
+              if (event.type === "content.completed" && typeof event.data.partId === "string") {
+                if (seenParts.has(event.data.partId)) continue
+                seenParts.add(event.data.partId)
+              }
+              onEvent(event)
+              if (FINAL.has(event.type)) finished = true
+            }
+          }
         }
-        for (const event of eventsOf(parsed)) onEvent(event)
+      } finally {
+        reader.cancel().catch(() => {})
       }
+      failures = gotRecords ? 0 : failures + 1
+    } catch (error) {
+      if (signal.aborted) return
+      if (error instanceof ApiFailure && error.status >= 400 && error.status < 500) throw error
+      failures++
     }
-  } finally {
-    reader.cancel().catch(() => {})
+    if (failures >= 5) throw new ApiFailure("I lost the connection. Could you say that again?", 0)
+    if (!finished && failures > 0) await new Promise((r) => setTimeout(r, 800 * failures))
   }
 }
