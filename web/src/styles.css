@@ -95,7 +95,7 @@ dialog.sheet[open] { animation: rise .28s ease; }
 .sheet h2 { margin: 0 0 4px; font-size: 22px; }
 .sheet h3 { margin: 22px 0 8px; font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
 .sheet p { margin: 6px 0; color: var(--muted); font-size: 15px; }
-.skins { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.skins { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
 .skin { border: 2px solid transparent; background: var(--card); border-radius: 18px; padding: 6px; aspect-ratio: 1; }
 .skin.on { border-color: var(--accent); }
 .skin svg { width: 100%; height: 100%; overflow: visible; }
@@ -155,4 +155,45 @@ dialog.sheet[open] { animation: rise .28s ease; }
 @media (prefers-reduced-motion: reduce) {
   .bob, .bounce .bob, .mic.rec, .thinking .dots circle, .sleepy .zzz text { animation: none; }
   .thinking .dots circle { opacity: .7; }
+}
+
+/* ---- character body ---- */
+.arm { transform-box: view-box; transition: transform .3s ease; }
+.arm-r { transform-origin: 153px 176px; }
+.arm-l { transform-origin: 87px 176px; }
+.waving .arm-r { animation: wave .7s ease-in-out infinite alternate; }
+.waving .arm-l { transform: rotate(14deg); }
+.skin .waving .arm-r, .preview-art .waving .arm-r { animation: none; }
+@keyframes wave { from { transform: rotate(-115deg); } to { transform: rotate(-145deg); } }
+
+/* ---- photo avatar ---- */
+.photo-avatar { position: relative; width: 100%; height: 100%; display: grid; place-items: center; }
+.photo-avatar .bob { position: relative; width: 82%; aspect-ratio: 1; transform-origin: 50% 100%; }
+.photo-avatar img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; border: 5px solid var(--card); box-shadow: 0 10px 30px rgba(0,0,0,.18), 0 0 0 3px var(--accent); display: block; }
+.photo-avatar.talking img { animation: speak .45s ease-in-out infinite alternate; }
+.mood-badge { position: absolute; right: 2%; bottom: 4%; width: 26%; aspect-ratio: 1; border-radius: 50%; background: var(--card); display: grid; place-items: center; font-size: clamp(18px, 7vw, 34px); box-shadow: 0 4px 12px rgba(0,0,0,.18); animation: pop .35s ease; }
+.photo-dots { position: absolute; right: -2%; top: -4%; display: flex; gap: 4px; opacity: 0; }
+.photo-dots i { width: 10px; height: 10px; border-radius: 50%; background: var(--card); border: 2px solid var(--line); }
+.photo-avatar.thinking .photo-dots { opacity: 1; }
+.photo-avatar.thinking .photo-dots i { animation: think 1.4s ease-in-out infinite; }
+.photo-avatar.thinking .photo-dots i:nth-child(2) { animation-delay: .2s; }
+.photo-avatar.thinking .photo-dots i:nth-child(3) { animation-delay: .4s; }
+@keyframes speak { from { box-shadow: 0 10px 30px rgba(0,0,0,.18), 0 0 0 3px var(--accent); } to { box-shadow: 0 10px 30px rgba(0,0,0,.18), 0 0 0 9px var(--glow); } }
+
+/* ---- name tag and settings preview ---- */
+.name-tag { display: inline-flex; align-items: center; gap: 6px; margin-top: 2px; padding: 5px 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--card); font-weight: 700; font-size: 15px; }
+.name-tag svg { width: 15px; height: 15px; color: var(--muted); }
+.preview { display: flex; align-items: center; gap: 14px; }
+.preview-art { width: 84px; height: 84px; flex: none; }
+.preview-art svg { width: 100%; height: 100%; overflow: visible; }
+.preview-art .bob { animation: none; }
+.preview h2 { margin: 0; }
+.preview p { margin: 2px 0 0; }
+.skin.upload { position: relative; display: grid; place-items: center; cursor: pointer; overflow: hidden; color: var(--muted); }
+.skin.upload img { width: 100%; height: 100%; object-fit: cover; border-radius: 14px; }
+.upload-in { display: grid; justify-items: center; gap: 4px; font-size: 13px; font-weight: 600; }
+.upload-in svg { width: 28px; height: 28px; }
+.visually-hidden { position: absolute; width: 1px; height: 1px; opacity: 0; overflow: hidden; clip: rect(0 0 0 0); }
+@media (prefers-reduced-motion: reduce) {
+  .waving .arm-r, .photo-avatar.talking img { animation: none; }
 }

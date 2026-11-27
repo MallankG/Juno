@@ -33,6 +33,7 @@ export const Profile = Schema.Struct({
   username: Schema.String,
   agentName: Schema.String,
   avatar: Schema.String,
+  avatarImage: Schema.NullOr(Schema.String),
   timezone: Schema.String,
   birthday: Schema.NullOr(Schema.String),
   googleConnected: Schema.Boolean,

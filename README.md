@@ -16,9 +16,9 @@ Several people can have their own accounts, each with their own memory, name, av
 | **Long-term memory** | [Supermemory](https://supermemory.ai) keeps facts about you and recalls them. A nightly review corrects facts from your feedback. |
 | **Voice** | Speak to Juno and hear replies. [Deepgram](https://deepgram.com) does speech-to-text and text-to-speech. |
 | **Notifications** | Web push to your phone when a brief or review is ready. |
-| **Animated avatar with moods** | Juno is an animated face that blinks, follows your finger, thinks while it works and talks while it speaks. Every reply carries a mood (happy, excited, thinking, concerned, empathetic, proud, sleepy and more), and the face shows it. |
+| **Animated avatar with moods** | Juno is an animated character (ears, hair curl, scarf, little arms that wave) that blinks, follows your finger, thinks while it works and talks while it speaks. Every reply carries a mood (happy, excited, thinking, concerned, empathetic, proud, sleepy and more), and the face shows it. |
 | **Celebrations** | Juno knows the day: Diwali, Christmas, Eid, Lunar New Year, Holi, Thanksgiving, Halloween and more, plus your birthday and the day you joined. It wears a festive accessory, plays confetti, fireworks, snow or hearts, and greets you. |
-| **Name and look** | Rename Juno and pick one of six colours. Each person chooses their own. |
+| **Name and look** | Rename your assistant (tap its name tag under the avatar) and pick one of six colours, or upload your own picture. A photo shows its mood as a badge. Each person chooses their own. |
 | **Accounts** | Sign up in the app (with an invite code if you set one). Each person has a separate memory and Google connection. Sign-in uses a token, so the browser never shows a password pop-up. |
 
 ## Architecture
@@ -130,7 +130,7 @@ Set `AUTH_SECRET` (any long random string) in production. It signs the sign-in t
 
 - **Talk:** tap the mic, speak, then tap it again to send. Or tap the keyboard to type. Tap a suggestion for a quick start.
 - **Moods and celebrations:** tap Juno to say hi. On a festival or your birthday, tap the banner to celebrate again. Turn spoken replies and seasonal effects on or off in Settings.
-- **Name, look and birthday:** set them in Settings.
+- **Name, look and birthday:** tap the name tag under the avatar (or Settings). Pick a colour or tap **Your photo** to upload a picture; it's cropped to a small square on your phone before it's saved.
 - **Time zone:** set it in Settings. Calendar events and the brief use it.
 - **Automatic rules:** ask in chat, e.g. "add my team standup every Monday at 9 for 30 minutes". Juno asks you to approve the rule. Manage rules in Settings.
 - **Notifications:** **Settings → Turn on notifications**, then *Send a test*.

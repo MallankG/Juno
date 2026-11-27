@@ -36,7 +36,7 @@ export type User = {
   createdAt: string;
   agentName: string;
   avatar: string; // a skin id, see SKINS
-  avatarData?: string; // legacy field from uploaded pictures; no longer used
+  avatarData?: string; // an uploaded photo as a small data URL (see AVATAR_IMAGE)
   timezone: string;
   birthday?: string; // "MM-DD"
   google?: { refreshToken: string; email?: string };
@@ -55,6 +55,13 @@ export const SKINS = ["juno", "mint", "ocean", "sunset", "midnight", "rose"] as 
 const LEGACY_SKINS: Record<string, string> = {
   "orb-ember": "sunset", "orb-ocean": "ocean", "orb-moss": "mint", "orb-dusk": "midnight", "orb-sand": "rose", custom: "juno",
 };
+/**
+ * Uploaded avatar photos: the app crops them to a 256px square and sends a
+ * data URL. Only PNG, JPEG and WebP are accepted, up to about 150 KB.
+ */
+export const AVATAR_IMAGE = /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/]+=*$/;
+export const AVATAR_IMAGE_MAX = 200_000;
+
 export const skinOf = (avatar: string) =>
   (SKINS as readonly string[]).includes(avatar) ? avatar : LEGACY_SKINS[avatar] ?? "juno";
 
@@ -260,6 +267,7 @@ export function publicProfile(user: User) {
     username: user.username,
     agentName: user.agentName,
     avatar: skinOf(user.avatar),
+    avatarImage: user.avatarData && AVATAR_IMAGE.test(user.avatarData) ? user.avatarData : null,
     timezone: user.timezone,
     birthday: user.birthday ?? null,
     googleConnected: Boolean(user.google?.refreshToken),

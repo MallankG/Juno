@@ -1,11 +1,12 @@
-import { Command, Component, Subscription, UiSchema } from "@effect/ui"
+import { Command, Component, Mount, Subscription, UiSchema } from "@effect/ui"
 import { Html } from "@effect/ui/html"
 import { Effect, Queue, Schema, Stream } from "effect"
-import { Avatar, FaceArt } from "../components/Avatar.ts"
+import { Avatar, FaceArt, PhotoArt } from "../components/Avatar.ts"
 import { FxLayer } from "../components/FxLayer.ts"
 import { isMood, SKIN_IDS, skinOf } from "../domain/Face.ts"
 import { ChatLine, decodeProfile, firstName, Profile } from "../domain/Profile.ts"
 import { call, failureOf, followTurn, type StreamEvent, streamTail } from "../platform/api.ts"
+import { shrinkPhoto } from "../platform/photo.ts"
 import * as Voice from "../platform/voice.ts"
 
 // ---- Schemas -------------------------------------------------------------------
@@ -17,6 +18,7 @@ const Turn = Schema.Struct({ sessionId: Schema.String, startIndex: Schema.Number
 const SettingsForm = Schema.Struct({
   name: Schema.String,
   skin: Schema.String,
+  image: Schema.NullOr(Schema.String),
   month: Schema.String,
   day: Schema.String,
   timezone: Schema.String
@@ -38,6 +40,10 @@ export const HomeMessage = UiSchema.TaggedEnum({
   ClickedNewChat: {},
   UpdatedName: { value: Schema.String },
   PickedSkin: { skin: Schema.String },
+  PickedPhoto: { image: Schema.String },
+  FailedPickPhoto: { reason: Schema.String },
+  ClickedRemovePhoto: {},
+  ClickedRename: {},
   UpdatedBirthMonth: { value: Schema.String },
   UpdatedBirthDay: { value: Schema.String },
   UpdatedTimezone: { value: Schema.String },
@@ -203,6 +209,7 @@ const SaveSettings = Command.make(
     accountCall(token, "/eve/v1/account/settings", {
       agentName: form.name,
       avatar: form.skin,
+      avatarImage: form.image,
       timezone: form.timezone,
       birthday: form.month && form.day ? `${form.month}-${form.day}` : ""
     }, "Saved")
@@ -329,7 +336,7 @@ const greetingFor = (profile: Profile) => {
 
 const formFor = (profile: Profile): SettingsForm => {
   const [month, day] = (profile.birthday ?? "-").split("-")
-  return { name: profile.agentName, skin: profile.avatar, month: month ?? "", day: day ?? "", timezone: profile.timezone }
+  return { name: profile.agentName, skin: profile.avatar, image: profile.avatarImage, month: month ?? "", day: day ?? "", timezone: profile.timezone }
 }
 
 const suggestionsFor = (profile: Profile): ReadonlyArray<readonly [string, string]> => {
@@ -342,6 +349,30 @@ const suggestionsFor = (profile: Profile): ReadonlyArray<readonly [string, strin
   ideas.push(["Triage mail", "Look through my unread mail and draft replies where needed."], ["Next meeting", "Prep me for my next meeting."], ["About me", "What do you know about me?"])
   return ideas
 }
+
+// Reads the picture someone picks and shrinks it to a small square.
+const ReadPhoto = Mount.makeStream(
+  "ReadPhoto",
+  {},
+  (node: HTMLInputElement) =>
+    Stream.callback<{ readonly ok: boolean; readonly value: string }>((queue) =>
+      Effect.acquireRelease(
+        Effect.sync(() => {
+          const onChange = () => {
+            const file = node.files?.[0]
+            node.value = ""
+            if (!file) return
+            shrinkPhoto(file).then(
+              (value) => Queue.offerUnsafe(queue, { ok: true, value }),
+              (error: unknown) => Queue.offerUnsafe(queue, { ok: false, value: error instanceof Error ? error.message : "That picture didn't work." })
+            )
+          }
+          node.addEventListener("change", onChange)
+          return onChange
+        }),
+        (onChange) => Effect.sync(() => node.removeEventListener("change", onChange))
+      ))
+)
 
 const TICKLES = ["Hehe, that tickles!", "Hi there!", "I'm all ears.", "Boop!", "Ready when you are."]
 
@@ -501,7 +532,13 @@ export const Home = HomeDef.make({
         .run(SaveLocal.make({ key: "junoHistory", value: null }))
         .run(SaveLocal.make({ key: "sessionId", value: null })),
     UpdatedName: ($, { value }) => $.evolve({ form: { ...$.model.form, name: value } }),
-    PickedSkin: ($, { skin }) => $.evolve({ form: { ...$.model.form, skin }, mood: "excited", moodSeq: (n) => n + 1 }).run(PauseMood.make({ ms: 1200, seq: $.model.moodSeq + 1 })),
+    PickedSkin: ($, { skin }) => $.evolve({ form: { ...$.model.form, skin, image: null }, mood: "excited", moodSeq: (n) => n + 1 }).run(PauseMood.make({ ms: 1200, seq: $.model.moodSeq + 1 })),
+    PickedPhoto: ($, { image }) =>
+      $.evolve({ form: { ...$.model.form, image }, mood: "excited", moodSeq: (n) => n + 1 }).run(PauseMood.make({ ms: 1200, seq: $.model.moodSeq + 1 })),
+    FailedPickPhoto: ($, { reason }) =>
+      $.evolve({ toast: { id: $.model.moodSeq + 3000, text: reason } }).run(PauseToast.make({ id: $.model.moodSeq + 3000 })),
+    ClickedRemovePhoto: ($) => $.evolve({ form: { ...$.model.form, image: null } }),
+    ClickedRename: ($) => $.evolve({ sheet: "Settings", form: formFor($.props.profile), pushNote: "" }),
     UpdatedBirthMonth: ($, { value }) => $.evolve({ form: { ...$.model.form, month: value } }),
     UpdatedBirthDay: ($, { value }) => $.evolve({ form: { ...$.model.form, day: value } }),
     UpdatedTimezone: ($, { value }) => $.evolve({ form: { ...$.model.form, timezone: value } }),
@@ -676,9 +713,17 @@ export const Home = HomeDef.make({
               skin: profile.avatar,
               mood: model.mood,
               talking: model.phase === "Speaking",
-              accessory: festival ? festival.accessory : null
+              accessory: festival ? festival.accessory : null,
+              image: profile.avatarImage,
+              name: profile.agentName
             }
           })
+        ),
+        h.button.class("name-tag").attrs({ type: "button", "aria-label": `Rename ${profile.agentName}` }).on("click", HomeMessage.ClickedRename()).children(
+          profile.agentName,
+          h.svg.attrs({ viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", "stroke-width": "2.2", "stroke-linecap": "round", "stroke-linejoin": "round", "aria-hidden": "true" }).children(
+            h.path.attrs({ d: "M4 20h4L19 9l-4-4L4 16v4zM14 6l4 4" })
+          )
         ),
         h.p.class("status", (model.phase === "Thinking" || model.phase === "Transcribing") && "busy").attr("aria-live", "polite").children(status)
       ),
@@ -782,21 +827,47 @@ const SettingsSheet = (h: Html.H<HomeMessage>, model: HomeModel, profile: Profil
   return Sheet$(h, model.sheet === "Settings", "Settings", HomeMessage.RequestedCloseSheet()).children(
     h.div.class("sheet-in").children(
       h.div.class("grab"),
-      h.h2(profile.agentName),
-      h.p(`Signed in as ${profile.username}`),
+      h.div.class("preview").children(
+        h.div.class("preview-art").children(
+          model.form.image
+            ? PhotoArt(h, { image: model.form.image, mood: "happy", talking: false, name: model.form.name })
+            : FaceArt(h, { uid: "preview", skin: model.form.skin, mood: "happy", talking: false, accessory: null, gaze: [0, 0], blinking: false })
+        ),
+        h.div(
+          h.h2(model.form.name.trim() || profile.agentName),
+          h.p(`Signed in as ${profile.username}`)
+        )
+      ),
 
       h.h3("Name"),
-      h.input.attrs({ type: "text", maxlength: "24", placeholder: "Juno", "aria-label": "Name" })
+      h.p("Call your assistant anything you like."),
+      h.input.attrs({ type: "text", maxlength: "24", placeholder: "Juno", "aria-label": "Assistant name" })
         .value(model.form.name).on("input", ({ value }) => HomeMessage.UpdatedName({ value })),
 
       h.h3("Look"),
+      h.p("Pick a colour, or use your own picture."),
       h.div.class("skins").children(
+        h.label.key("photo").class("skin", "upload", model.form.image !== null && "on").attrs({ "aria-label": "Upload a picture" }).children(
+          model.form.image
+            ? h.img.attrs({ src: model.form.image, alt: "" })
+            : h.span.class("upload-in").children(
+              h.svg.attrs({ viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", "stroke-width": "2", "stroke-linecap": "round", "stroke-linejoin": "round", "aria-hidden": "true" }).children(
+                h.path.attrs({ d: "M4 7h3l2-3h6l2 3h3v13H4z" }),
+                h.circle.attrs({ cx: "12", cy: "13", r: "4" })
+              ),
+              h.span("Your photo")
+            ),
+          h.input.class("visually-hidden").attrs({ type: "file", accept: "image/*" })
+            .onMount(ReadPhoto().pipe(Mount.map((r) => (r.ok ? HomeMessage.PickedPhoto({ image: r.value }) : HomeMessage.FailedPickPhoto({ reason: r.value })))))
+        ),
         ...SKIN_IDS.map((id) =>
           h.button.key(id).class("skin", model.form.skin === id && "on").attrs({ type: "button", "aria-label": skinOf(id).label, "aria-pressed": String(model.form.skin === id) })
             .on("click", HomeMessage.PickedSkin({ skin: id }))
             .children(FaceArt(h, { uid: `skin-${id}`, skin: id, mood: "happy", talking: false, accessory: null, gaze: [0, 0], blinking: false }))
         )
       ),
+      model.form.image !== null &&
+        h.button.class("btn", "wide").attrs({ type: "button" }).on("click", HomeMessage.ClickedRemovePhoto()).children("Remove photo"),
 
       h.h3("Your birthday"),
       h.p(`${profile.agentName} will celebrate with you.`),

@@ -1,7 +1,7 @@
 import { defineChannel, GET, POST } from "eve/channels";
 
 import {
-  authenticate, checkPassword, ensureUser, inviteRequired, issueToken, publicProfile, register, SKINS, updateUser,
+  authenticate, checkPassword, ensureUser, inviteRequired, issueToken, AVATAR_IMAGE, AVATAR_IMAGE_MAX, publicProfile, register, SKINS, updateUser,
   USERNAME_PATTERN, type User,
 } from "../lib/accounts";
 import { connectUrl, disconnect, exchangeCode, googleConfigured, storeConnection, verifyState } from "../lib/google";
@@ -107,6 +107,12 @@ export default defineChannel({
             if (!(SKINS as readonly string[]).includes(body.avatar)) throw new Error("Choose one of the looks offered.");
             user.avatar = body.avatar;
             delete user.avatarData;
+          }
+          if (body.avatarImage === null) delete user.avatarData;
+          else if (typeof body.avatarImage === "string") {
+            if (body.avatarImage.length > AVATAR_IMAGE_MAX) throw new Error("That picture is too large. Try a smaller one.");
+            if (!AVATAR_IMAGE.test(body.avatarImage)) throw new Error("Use a PNG, JPEG or WebP picture.");
+            user.avatarData = body.avatarImage;
           }
           if (body.birthday === "" || body.birthday === null) delete user.birthday;
           else if (typeof body.birthday === "string") {

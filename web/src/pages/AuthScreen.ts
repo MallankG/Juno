@@ -128,7 +128,7 @@ export const AuthScreen = Html.component({
     h.main.class("screen", "auth").children(
       FxLayer(h, { burstId: model.burstId, effect: "confetti", season: "" }),
       h.button.class("avatar-btn").attrs({ type: "button", "aria-label": "Say hi to Juno" }).on("click", AuthScreenMessage.PressedAvatar()).children(
-        Avatar(h, { props: { uid: "auth", skin: "juno", mood: model.mood, talking: false, accessory: null } })
+        Avatar(h, { props: { uid: "auth", skin: "juno", mood: model.mood, talking: false, accessory: null, image: null, name: "Juno" } })
       ),
       h.h1("Hi, I'm Juno"),
       h.p.class("lead").children("Your personal assistant. I learn what matters to you."),
