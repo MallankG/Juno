@@ -61,11 +61,16 @@ function localSave(all: Record<string, unknown>): void {
 
 // ---- Vercel Blob backend -------------------------------------------------
 
+// A read-write token (from a store connected to the project) wins over
+// BLOB_STORE_ID. The SDK would otherwise prefer BLOB_STORE_ID, which can point
+// at a different store, for example an older public one.
+const blobAuth = () => (process.env.BLOB_READ_WRITE_TOKEN ? { token: process.env.BLOB_READ_WRITE_TOKEN } : {});
+
 const blobPath = (name: string) => `docs/${name.replace(/[^a-zA-Z0-9_/-]/g, "_")}.json`;
 
 async function blobRead<T>(name: string): Promise<T | null> {
   try {
-    const result = await get(blobPath(name), { access: "private", useCache: false });
+    const result = await get(blobPath(name), { access: "private", useCache: false, ...blobAuth() });
     if (!result || result.statusCode !== 200 || !result.stream) return null;
     return JSON.parse(await new Response(result.stream).text()) as T;
   } catch (error) {
@@ -82,6 +87,7 @@ async function blobWrite(name: string, value: unknown): Promise<void> {
     contentType: "application/json",
     allowOverwrite: true,
     addRandomSuffix: false,
+    ...blobAuth(),
   });
 }
 
