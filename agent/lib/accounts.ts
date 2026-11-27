@@ -1,8 +1,9 @@
-import { randomBytes, scrypt as scryptCb, timingSafeEqual } from "node:crypto";
+import { createHmac, randomBytes, scrypt as scryptCb, timingSafeEqual } from "node:crypto";
 import { promisify } from "node:util";
 
 import { localDev, routeAuth, withAuthChallenges } from "eve/channels/auth";
 
+import { todayFor } from "./festivals";
 import { readDoc, updateDoc } from "./store";
 import { recordSigninFailure, signinBlocked } from "./rate-limit";
 
@@ -34,9 +35,10 @@ export type User = {
   hash: string;
   createdAt: string;
   agentName: string;
-  avatar: string; // "juno", a preset id, or "custom"
-  avatarData?: string; // data URL when avatar is "custom"
+  avatar: string; // a skin id, see SKINS
+  avatarData?: string; // legacy field from uploaded pictures; no longer used
   timezone: string;
+  birthday?: string; // "MM-DD"
   google?: { refreshToken: string; email?: string };
   push: unknown[];
   autoRules: AutoRule[];
@@ -47,6 +49,14 @@ const USERS = "users";
 const EMPTY: UsersDoc = { users: {} };
 
 export const USERNAME_PATTERN = /^[a-z0-9_-]{3,24}$/;
+
+/** Colour skins for Juno's character. Older avatar ids map onto these. */
+export const SKINS = ["juno", "mint", "ocean", "sunset", "midnight", "rose"] as const;
+const LEGACY_SKINS: Record<string, string> = {
+  "orb-ember": "sunset", "orb-ocean": "ocean", "orb-moss": "mint", "orb-dusk": "midnight", "orb-sand": "rose", custom: "juno",
+};
+export const skinOf = (avatar: string) =>
+  (SKINS as readonly string[]).includes(avatar) ? avatar : LEGACY_SKINS[avatar] ?? "juno";
 
 async function hashPassword(password: string, salt: string): Promise<string> {
   return (await scrypt(password, salt, 64)).toString("hex");
@@ -127,36 +137,91 @@ function adminMatches(username: string, password: string): boolean {
   return username === admin && password === adminPassword;
 }
 
-/** HTTP Basic sign-in against accounts. Returns the identity eve uses for the request. */
+// ---- session tokens -------------------------------------------------------
+//
+// The phone app signs in once with a username and password and receives a
+// signed token (valid 30 days). The app sends it as "Authorization: Bearer".
+// Using Bearer, not HTTP Basic, means browsers never show their own password
+// pop-up. Changing AUTH_SECRET signs everyone out.
+
+const TOKEN_DAYS = 30;
+
+function authSecret(): string {
+  const secret = process.env.AUTH_SECRET || process.env.CRON_SECRET || "";
+  if (secret) return secret;
+  if (process.env.NODE_ENV !== "production") return "juno-local-development-only";
+  throw new Error("AUTH_SECRET is not set, so sign-in is turned off.");
+}
+
+const sign = (payload: string) => createHmac("sha256", authSecret()).update(payload).digest("base64url");
+
+export function issueToken(username: string): string {
+  const payload = Buffer.from(JSON.stringify({ u: username, exp: Date.now() + TOKEN_DAYS * 86_400_000 })).toString("base64url");
+  return `${payload}.${sign(payload)}`;
+}
+
+function verifyToken(token: string): string | null {
+  const [payload, mac] = token.split(".");
+  if (!payload || !mac) return null;
+  let expected: Buffer;
+  try {
+    expected = Buffer.from(sign(payload));
+  } catch {
+    return null;
+  }
+  const given = Buffer.from(mac);
+  if (expected.length !== given.length || !timingSafeEqual(expected, given)) return null;
+  try {
+    const { u, exp } = JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as { u: string; exp: number };
+    return typeof u === "string" && exp > Date.now() ? u : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Checks a username and password. Counts failures, and refuses for a while after too many. */
+export async function checkPassword(rawUsername: string, password: string): Promise<string | null> {
+  const username = rawUsername.trim().toLowerCase();
+  if (!username || (await signinBlocked(username))) return null;
+  if (adminMatches(username, password)) {
+    await ensureUser(username);
+    return username;
+  }
+  const user = await findUser(username);
+  if (user && (await passwordMatches(user, password))) return username;
+  await recordSigninFailure(username);
+  return null;
+}
+
+const principal = (username: string) => ({
+  authenticator: "account",
+  principalType: "user" as const,
+  principalId: username,
+  attributes: {},
+});
+
+/**
+ * Sign-in for every API route. Accepts the app's Bearer token, and HTTP Basic
+ * for scripts. Its 401 advertises Bearer only, so browsers never pop up a
+ * password dialog.
+ */
 export const accountAuth = withAuthChallenges(
   async (request: Request) => {
     const header = request.headers.get("authorization") ?? "";
-    if (!header.startsWith("Basic ")) return null;
-    const decoded = Buffer.from(header.slice(6), "base64").toString("utf8");
-    const separator = decoded.indexOf(":");
-    if (separator < 0) return null;
-    const username = decoded.slice(0, separator).toLowerCase();
-    const password = decoded.slice(separator + 1);
-    if (await signinBlocked(username)) return null; // too many failures: refuse for a while
-
-    let principal: string | null = null;
-    if (adminMatches(username, password)) principal = username;
-    else {
-      const user = await findUser(username);
-      if (user && (await passwordMatches(user, password))) principal = username;
+    if (header.startsWith("Bearer ")) {
+      const username = verifyToken(header.slice(7).trim());
+      return username ? principal(username) : null;
     }
-    if (!principal) {
-      await recordSigninFailure(username);
-      return null;
+    if (header.startsWith("Basic ")) {
+      const decoded = Buffer.from(header.slice(6), "base64").toString("utf8");
+      const separator = decoded.indexOf(":");
+      if (separator < 0) return null;
+      const username = await checkPassword(decoded.slice(0, separator), decoded.slice(separator + 1));
+      return username ? principal(username) : null;
     }
-    return {
-      authenticator: "account",
-      principalType: "user" as const,
-      principalId: principal,
-      attributes: {},
-    };
+    return null;
   },
-  [{ scheme: "Basic", parameters: { realm: "Your assistant" } }],
+  [{ scheme: "Bearer" }],
 );
 
 /**
@@ -171,10 +236,12 @@ export async function authenticate(
   return { username: result.principalId };
 }
 
-/** Creates a new account if the invite code is right. */
+/** Creates a new account. Needs the invite code when INVITE_CODE is set; open sign-up otherwise. */
+export const inviteRequired = () => Boolean(process.env.INVITE_CODE);
+
 export async function register(username: string, password: string, inviteCode: string): Promise<User> {
   const expected = process.env.INVITE_CODE ?? "";
-  if (!expected || inviteCode !== expected) throw new Error("That invite code is not valid.");
+  if (expected && inviteCode.trim() !== expected) throw new Error("That invite code is not valid.");
   if (!USERNAME_PATTERN.test(username)) {
     throw new Error("Use 3 to 24 letters, numbers, dashes or underscores for the username.");
   }
@@ -186,11 +253,12 @@ export function publicProfile(user: User) {
   return {
     username: user.username,
     agentName: user.agentName,
-    avatar: user.avatar,
-    avatarData: user.avatar === "custom" ? user.avatarData : undefined,
+    avatar: skinOf(user.avatar),
     timezone: user.timezone,
+    birthday: user.birthday ?? null,
     googleConnected: Boolean(user.google?.refreshToken),
     pushSubscribed: user.push.length > 0,
     autoRules: user.autoRules,
+    today: todayFor(user.timezone, user.birthday, user.createdAt),
   };
 }

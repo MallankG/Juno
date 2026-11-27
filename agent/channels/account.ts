@@ -1,18 +1,23 @@
 import { defineChannel, GET, POST } from "eve/channels";
 
-import { authenticate, ensureUser, publicProfile, register, updateUser, USERNAME_PATTERN, type User } from "../lib/accounts";
+import {
+  authenticate, checkPassword, ensureUser, inviteRequired, issueToken, publicProfile, register, SKINS, updateUser,
+  USERNAME_PATTERN, type User,
+} from "../lib/accounts";
 import { connectUrl, disconnect, exchangeCode, googleConfigured, storeConnection, verifyState } from "../lib/google";
 import { pushConfigured, saveSubscription, vapidPublicKey, notify } from "../lib/push";
-import { clientIp, consumeRegister, tooMany } from "../lib/rate-limit";
+import { clientIp, consumeLogin, consumeRegister, tooMany } from "../lib/rate-limit";
 
 /**
  * Accounts, settings, Google connection and push notifications.
  *
- *   POST /eve/v1/account/register        create an account (invite code)
- *   GET  /eve/v1/account                 your profile and settings
- *   POST /eve/v1/account/settings        agent name, avatar, time zone
+ *   GET  /eve/v1/account/config          public: is an invite code needed?
+ *   POST /eve/v1/account/register        create an account; returns a sign-in token
+ *   POST /eve/v1/account/login           sign in; returns a sign-in token
+ *   GET  /eve/v1/account                 your profile, settings and today's celebration
+ *   POST /eve/v1/account/settings        name, skin, time zone, birthday
  *   POST /eve/v1/account/rules/remove    remove an automatic calendar rule
- *   GET  /eve/v1/google/connect          start connecting your Google account
+ *   POST /eve/v1/google/connect-url      the Google consent link to open
  *   GET  /eve/v1/google/callback         Google sends you back here
  *   POST /eve/v1/google/disconnect       forget your Google connection
  *   GET  /eve/v1/push/key                public key for push subscriptions
@@ -33,8 +38,6 @@ const page = (title: string, message: string) =>
     { headers: { "content-type": "text/html; charset=utf-8" } },
   );
 
-const AVATAR_PRESETS = ["juno", "orb-ember", "orb-ocean", "orb-moss", "orb-dusk", "orb-sand", "custom"];
-const MAX_AVATAR_BYTES = 200 * 1024;
 
 async function readBody(request: Request): Promise<Record<string, unknown>> {
   return ((await request.json().catch(() => ({}))) ?? {}) as Record<string, unknown>;
@@ -42,6 +45,8 @@ async function readBody(request: Request): Promise<Record<string, unknown>> {
 
 export default defineChannel({
   routes: [
+    GET("/eve/v1/account/config", async () => json({ inviteRequired: inviteRequired() })),
+
     POST("/eve/v1/account/register", async (request) => {
       const attempt = await consumeRegister(clientIp(request));
       if (!attempt.allowed) return tooMany(attempt);
@@ -49,12 +54,25 @@ export default defineChannel({
       try {
         const username = String(body.username ?? "").trim().toLowerCase();
         if (!USERNAME_PATTERN.test(username)) {
-          throw new Error("Use 3 to 24 letters, numbers, dashes or underscores for the username.");
+          throw new Error("Use 3 to 24 lowercase letters, numbers, dashes or underscores for the username.");
         }
         const user = await register(username, String(body.password ?? ""), String(body.inviteCode ?? ""));
-        return json({ ok: true, username: user.username });
+        return json({ ok: true, token: issueToken(user.username), profile: publicProfile(user) });
       } catch (error) {
         return errorResponse(error);
+      }
+    }),
+
+    POST("/eve/v1/account/login", async (request) => {
+      const attempt = await consumeLogin(clientIp(request));
+      if (!attempt.allowed) return tooMany(attempt);
+      const body = await readBody(request);
+      try {
+        const username = await checkPassword(String(body.username ?? ""), String(body.password ?? ""));
+        if (!username) return json({ error: "That username and password don't match." }, 401);
+        return json({ ok: true, token: issueToken(username), profile: publicProfile(await ensureUser(username)) });
+      } catch (error) {
+        return errorResponse(error, 500);
       }
     }),
 
@@ -86,16 +104,16 @@ export default defineChannel({
             user.timezone = body.timezone;
           }
           if (typeof body.avatar === "string") {
-            if (!AVATAR_PRESETS.includes(body.avatar)) throw new Error("Choose one of the avatars offered.");
+            if (!(SKINS as readonly string[]).includes(body.avatar)) throw new Error("Choose one of the looks offered.");
             user.avatar = body.avatar;
-            if (body.avatar !== "custom") delete user.avatarData;
+            delete user.avatarData;
           }
-          if (typeof body.avatarData === "string") {
-            const match = /^data:image\/(png|jpeg|webp);base64,/.exec(body.avatarData);
-            if (!match) throw new Error("Upload a PNG, JPEG or WebP image.");
-            if (body.avatarData.length * 0.75 > MAX_AVATAR_BYTES) throw new Error("Use an image under 200 KB.");
-            user.avatar = "custom";
-            user.avatarData = body.avatarData;
+          if (body.birthday === "" || body.birthday === null) delete user.birthday;
+          else if (typeof body.birthday === "string") {
+            const m = /^(\d{2})-(\d{2})$/.exec(body.birthday);
+            const valid = m && Number(m[1]) >= 1 && Number(m[1]) <= 12 && Number(m[2]) >= 1 && Number(m[2]) <= 31;
+            if (!valid) throw new Error("Enter the birthday as month and day.");
+            user.birthday = body.birthday;
           }
           return publicProfile(user);
         });
@@ -116,11 +134,11 @@ export default defineChannel({
       return json(publicProfile(await ensureUser(who.username)));
     }),
 
-    GET("/eve/v1/google/connect", async (request) => {
+    POST("/eve/v1/google/connect-url", async (request) => {
       const who = await authenticate(request);
       if ("response" in who) return who.response;
-      if (!googleConfigured()) return page("Google is not set up", "The owner needs to add Google credentials first.");
-      return new Response(null, { status: 302, headers: { location: connectUrl(who.username) } });
+      if (!googleConfigured()) return errorResponse(new Error("Google isn't set up on this assistant yet."), 503);
+      return json({ url: connectUrl(who.username) });
     }),
 
     GET("/eve/v1/google/callback", async (request) => {
@@ -130,7 +148,7 @@ export default defineChannel({
       if (!username || !code) return page("Could not connect", "This link is not valid or has expired. Try connecting again from settings.");
       try {
         await storeConnection(username, await exchangeCode(code));
-        return page("Google connected", "Your calendar and mail are connected. You can close this page.");
+        return new Response(null, { status: 302, headers: { location: "/?connected=google" } });
       } catch (error) {
         return page("Could not connect", error instanceof Error ? error.message : "Try again.");
       }

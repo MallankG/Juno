@@ -2,6 +2,7 @@ import { defineMemoryProvider } from "eve/memory";
 import { defineTool } from "eve/tools";
 import { z } from "zod";
 
+import { stripMood } from "./mood";
 import { notify } from "./push";
 import { type Brief, type Episode, newId, readScope, updateScope } from "./scope-data";
 import { whoIsCalling } from "./who";
@@ -49,7 +50,7 @@ export function learningMemory() {
         const key = ctx.memory.scope.key;
         const user = ctx.turn.input.filter((m) => roleOf(m) === "user").map(textOf).join("\n").trim();
         const last = [...ctx.messages].reverse().find((m) => roleOf(m) === "assistant");
-        const assistant = last ? textOf(last).trim() : "";
+        const assistant = last ? stripMood(textOf(last)) : "";
         if (!user && !assistant) return;
 
         await updateScope(key, (s) => {
@@ -114,7 +115,8 @@ export function learningMemory() {
             kind: z.enum(["daily", "weekly", "triage"]).default("daily"),
             text: z.string().min(20).max(20000),
           }),
-          async execute({ kind, text }, toolCtx) {
+          async execute({ kind, text: raw }, toolCtx) {
+            const text = stripMood(raw);
             const now = new Date();
             const brief: Brief = {
               id: newId("brief"),

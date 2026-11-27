@@ -1,6 +1,6 @@
 // Juno's service worker: caches the app shell so the page opens instantly,
 // shows push notifications, and never caches the API (/eve/).
-const SHELL = "juno-shell-v2";
+const SHELL = "juno-shell-v4";
 const ASSETS = ["/", "/manifest.webmanifest", "/icon-192.png", "/icon-512.png"];
 
 self.addEventListener("install", (event) => {

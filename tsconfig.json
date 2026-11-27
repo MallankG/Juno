@@ -10,5 +10,5 @@
     "resolveJsonModule": true,
     "types": ["node"]
   },
-  "include": ["agent/**/*.ts", "voice/**/*.ts"]
+  "include": ["agent/**/*.ts"]
 }

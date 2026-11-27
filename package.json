@@ -8,12 +8,13 @@
     "node": "24.x"
   },
   "scripts": {
-    "dev": "node scripts/embed-voice.mjs && eve dev",
-    "build": "node scripts/embed-voice.mjs && eve build",
+    "dev": "npm run build:web && node scripts/embed-web.mjs && eve dev",
+    "build": "npm run build:web && node scripts/embed-web.mjs && eve build",
     "start": "eve start",
     "info": "eve info",
-    "embed": "node scripts/embed-voice.mjs",
-    "typecheck": "tsc --noEmit"
+    "embed": "node scripts/embed-web.mjs",
+    "typecheck": "tsc --noEmit",
+    "build:web": "npm --prefix web install --no-audit --no-fund && npm --prefix web run build"
   },
   "dependencies": {
     "@ai-sdk/openai-compatible": "^3.0.96",

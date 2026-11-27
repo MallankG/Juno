@@ -93,6 +93,10 @@ export async function recordSigninFailure(username: string): Promise<void> {
   await consume(`signin-fail-${username}`, Number.MAX_SAFE_INTEGER, FIFTEEN, "");
 }
 
+export async function consumeLogin(ip: string): Promise<Verdict> {
+  return consume(`login-${ip}`, 30, FIFTEEN, "Too many sign-in attempts from this network. Try again in a few minutes.");
+}
+
 export async function consumeRegister(ip: string): Promise<Verdict> {
   return consume(`register-${ip}`, LIMITS.registerPerHour(), HOUR, "Too many accounts were created from this network. Try again later.");
 }

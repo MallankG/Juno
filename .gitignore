@@ -6,3 +6,6 @@ node_modules/
 .env
 .env.local
 *.log
+web/dist/
+web/node_modules/
+agent/lib/web-assets.ts

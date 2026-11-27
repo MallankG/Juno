@@ -1,0 +1,20 @@
+{
+  "name": "juno-web",
+  "private": true,
+  "type": "module",
+  "version": "0.1.0",
+  "description": "Juno's phone app, built with Effect UI.",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@effect/ui": "https://pkg.pr.new/Effect-TS/ui/@effect/ui@ce33539",
+    "effect": "4.1.6"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3",
+    "vite": "^8.3.6"
+  }
+}

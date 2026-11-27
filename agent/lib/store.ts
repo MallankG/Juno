@@ -7,7 +7,7 @@ import { get, put } from "@vercel/blob";
  * Durable named documents, used for accounts ("users") and each user's
  * learning log ("scope/<memory key>").
  *
- *  - Vercel Blob when BLOB_READ_WRITE_TOKEN is set (use a PRIVATE store).
+ *  - Vercel Blob when BLOB_READ_WRITE_TOKEN or BLOB_STORE_ID is set (a PRIVATE store).
  *    One JSON file per document under docs/.
  *  - A local JSON file otherwise (.eve-data/store.json), for `eve dev`.
  *
@@ -15,13 +15,30 @@ import { get, put } from "@vercel/blob";
  * changing the same document at the same moment can lose one update.
  */
 
-const usingBlob = () => Boolean(process.env.BLOB_READ_WRITE_TOKEN);
+/**
+ * Blob is used when a token is set, or when the project is connected to a Blob
+ * store (BLOB_STORE_ID): on Vercel the SDK then signs in with the deployment's
+ * own OIDC identity, so no token is needed.
+ */
+const usingBlob = () => Boolean(process.env.BLOB_READ_WRITE_TOKEN || process.env.BLOB_STORE_ID);
 
 // ---- local backend -------------------------------------------------------
 
 function localPath(): string {
-  return resolve(process.env.EVE_STORE_FILE ?? ".eve-data/store.json");
+  if (process.env.EVE_STORE_FILE) return resolve(process.env.EVE_STORE_FILE);
+  // Serverless hosts have a read-only app directory. /tmp is writable but is
+  // wiped between instances, so this is only a last resort: connect Blob.
+  if (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME) {
+    if (!warnedEphemeral) {
+      warnedEphemeral = true;
+      console.warn("[juno] No Blob store connected: data is kept in /tmp and will be lost. Connect a Blob store.");
+    }
+    return "/tmp/.eve-data/store.json";
+  }
+  return resolve(".eve-data/store.json");
 }
+
+let warnedEphemeral = false;
 
 function localAll(): Record<string, unknown> {
   const path = localPath();

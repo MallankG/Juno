@@ -16,8 +16,10 @@ Several people can have their own accounts, each with their own memory, name, av
 | **Long-term memory** | [Supermemory](https://supermemory.ai) keeps facts about you and recalls them. A nightly review corrects facts from your feedback. |
 | **Voice** | Speak to Juno and hear replies. [Deepgram](https://deepgram.com) does speech-to-text and text-to-speech. |
 | **Notifications** | Web push to your phone when a brief or review is ready. |
-| **Name and avatar** | Rename Juno and pick an avatar, or upload your own picture. Each person chooses their own. |
-| **Accounts** | Invite-only sign-up. Each person has a separate memory and Google connection. |
+| **Animated avatar with moods** | Juno is an animated face that blinks, follows your finger, thinks while it works and talks while it speaks. Every reply carries a mood (happy, excited, thinking, concerned, empathetic, proud, sleepy and more), and the face shows it. |
+| **Celebrations** | Juno knows the day: Diwali, Christmas, Eid, Lunar New Year, Holi, Thanksgiving, Halloween and more, plus your birthday and the day you joined. It wears a festive accessory, plays confetti, fireworks, snow or hearts, and greets you. |
+| **Name and look** | Rename Juno and pick one of six colours. Each person chooses their own. |
+| **Accounts** | Sign up in the app (with an invite code if you set one). Each person has a separate memory and Google connection. Sign-in uses a token, so the browser never shows a password pop-up. |
 
 ## Architecture
 
@@ -43,8 +45,14 @@ agent/
     store.ts                durable documents (Vercel Blob or a local file)
   memory/                   Supermemory facts, and the learning log
   tools/                    calendar, Gmail (read and drafts), auto rules, Slack
-voice/                      phone app: index.html, service worker, manifest, avatar and icons
-scripts/embed-voice.mjs     embeds voice/ into the agent (run by npm run dev and build)
+web/                        phone app, built with Effect UI (@effect/ui) and Vite
+  src/App.ts                sign-in or home, keeps the session token
+  src/pages/AuthScreen.ts   sign in and create account
+  src/pages/Home.ts         the assistant: avatar, voice, replies, approvals, settings
+  src/components/Avatar.ts  Juno's animated face (moods, blinking, gaze, accessories)
+  src/components/FxLayer.ts confetti, fireworks, snow and other celebrations
+  public/                   manifest, service worker and icons
+scripts/embed-web.mjs       embeds web/dist into the agent (run by npm run dev and build)
 ```
 
 Key design points:
@@ -112,12 +120,17 @@ Each person then connects their own account in **Settings → Connect Google**.
 - **iPhone:** open the link in Safari, tap Share, then *Add to Home Screen*. Notifications work once it's installed this way (iOS 16.4 or later).
 - **Android:** open the link in Chrome, then use the menu and *Install app*.
 
-Sign-up: tap **Settings → Create an account**, and enter the invite code you were given. Then reload the page and sign in.
+### How people get in
+
+Share your address (for example https://juno-mallank.vercel.app). Each person opens it, taps **Create account**, picks a username and password (plus the invite code, if you set `INVITE_CODE`), and is signed in straight away. They then add it to their home screen as above. Leave `INVITE_CODE` unset to let anyone sign up; set it to keep Juno private.
+
+Set `AUTH_SECRET` (any long random string) in production. It signs the sign-in tokens; changing it signs everyone out.
 
 ## Using Juno
 
-- **Talk:** tap **Talk**, speak, then tap **Stop**. Turn spoken replies on or off with *Voice on/off*.
-- **Name and avatar:** **Settings → Name and avatar**. Choose a preset, or upload a picture.
+- **Talk:** tap the mic, speak, then tap it again to send. Or tap the keyboard to type. Tap a suggestion for a quick start.
+- **Moods and celebrations:** tap Juno to say hi. On a festival or your birthday, tap the banner to celebrate again. Turn spoken replies and seasonal effects on or off in Settings.
+- **Name, look and birthday:** set them in Settings.
 - **Time zone:** set it in Settings. Calendar events and the brief use it.
 - **Automatic rules:** ask in chat, e.g. "add my team standup every Monday at 9 for 30 minutes". Juno asks you to approve the rule. Manage rules in Settings.
 - **Notifications:** **Settings → Turn on notifications**, then *Send a test*.
